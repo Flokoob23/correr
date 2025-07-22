@@ -27,6 +27,10 @@ const avgSpeedDisplay = document.getElementById("avg-speed");
 const maxSpeedDisplay = document.getElementById("max-speed");
 const avgPaceDisplay = document.getElementById("avg-pace");
 
+const ticketModal = document.getElementById("ticket-modal");
+const ticketContent = document.getElementById("ticket-content");
+const closeTicketBtn = document.getElementById("close-ticket-btn");
+
 // Inicialización Leaflet
 function initMap() {
     map = L.map("map").setView([-34.6037, -58.3816], 15); // Buenos Aires por defecto
@@ -34,14 +38,12 @@ function initMap() {
         attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
 
-    positionMarker = L.circleMarker([0, 0], {
+    positionMarker = L.circleMarker([-34.6037, -58.3816], {
         radius: 7,
         color: "#4f46e5",
         fillColor: "#6366f1",
         fillOpacity: 0.8,
     }).addTo(map);
-
-    positionMarker.setLatLng([-34.6037, -58.3816]);
 }
 
 // Calcula distancia en km entre 2 coords lat/lng con Haversine
@@ -110,7 +112,6 @@ function updateTimer() {
 }
 
 // Control GPS y seguimiento
-
 function watchPosition() {
     if (!isTracking) return null;
 
@@ -229,14 +230,33 @@ function pauseTracking() {
     statusText.classList.remove("pulse");
 }
 
-// Detener actividad y mostrar resumen
+// Mostrar modal ticket
+function showTicket() {
+    const tiempoFormateado = formatTime(elapsedTime);
+    const ritmoPromedio = avgPaceDisplay.textContent || "0:00";
+    const dist = distance.toFixed(2);
+
+    ticketContent.innerHTML = `
+      <p><strong>Distancia:</strong> ${dist} km</p>
+      <p><strong>Tiempo:</strong> ${tiempoFormateado}</p>
+      <p><strong>Ritmo promedio:</strong> ${ritmoPromedio} min/km</p>
+      <p class="mt-3 text-sm text-gray-600">¡Gracias por usar RunTracker!</p>
+    `;
+    ticketModal.classList.remove("hidden");
+}
+
+// Cerrar modal ticket
+function closeTicket() {
+    ticketModal.classList.add("hidden");
+}
+
+// Detener actividad y mostrar resumen con ticket modal
 function stopTracking() {
     if (!isTracking) return;
 
     clearInterval(timerInterval);
     isTracking = false;
     isPaused = false;
-    elapsedTime = 0;
 
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
@@ -249,7 +269,7 @@ function stopTracking() {
     statusText.textContent = "Actividad finalizada";
     statusText.classList.remove("pulse");
 
-    alert(`¡Actividad finalizada!\nDistancia: ${distance.toFixed(2)} km\nTiempo: ${formatTime(elapsedTime)}\nRitmo medio: ${avgPaceDisplay.textContent}`);
+    showTicket();
 }
 
 // Eventos botones
@@ -257,6 +277,9 @@ startBtn.addEventListener("click", startTracking);
 pauseBtn.addEventListener("click", pauseTracking);
 stopBtn.addEventListener("click", stopTracking);
 
+closeTicketBtn.addEventListener("click", closeTicket);
+
 // Inicializar mapa
 initMap();
+
 
