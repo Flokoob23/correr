@@ -1,221 +1,262 @@
-// app.js
-
-// Variables de estado
-let watchId = null;
-let isRunning = false;
-let startTime = 0;
-let elapsedTime = 0;
+// Variables globales
+let map, positionMarker, routeLine;
+let routePoints = [];
+let lastPosition = null;
+let distance = 0; // en km
+let elapsedTime = 0; // en ms
 let timerInterval = null;
+let isTracking = false;
+let isPaused = false;
+let startTime = null;
+let watchId = null;
+let kmAnnounced = 0;
 
-let positions = [];
-let distance = 0;
-let lastKmMark = 0;
+const timerDisplay = document.getElementById("timer");
+const startBtn = document.getElementById("start-btn");
+const pauseBtn = document.getElementById("pause-btn");
+const stopBtn = document.getElementById("stop-btn");
+const statusText = document.getElementById("status-text");
+const gpsStatus = document.getElementById("gps-status");
 
-const startButton = document.getElementById('startButton');
-const stopButton = document.getElementById('stopButton');
-const resetButton = document.getElementById('resetButton');
-const timerDisplay = document.getElementById('timer');
-const distanceDisplay = document.getElementById('distance');
-const paceDisplay = document.getElementById('pace');
-const totalTimeDisplay = document.getElementById('totalTime');
-const logList = document.getElementById('logList');
-const mapElement = document.getElementById('map');
+const distanceDisplay = document.getElementById("distance");
+const paceDisplay = document.getElementById("pace");
+const caloriesDisplay = document.getElementById("calories");
+const elevationDisplay = document.getElementById("elevation");
 
-let map, polyline;
+const avgSpeedDisplay = document.getElementById("avg-speed");
+const maxSpeedDisplay = document.getElementById("max-speed");
+const avgPaceDisplay = document.getElementById("avg-pace");
 
-// Inicialización del mapa
+// Inicialización Leaflet
 function initMap() {
-  map = L.map('map').setView([0, 0], 13);
+    map = L.map("map").setView([-34.6037, -58.3816], 15); // Buenos Aires por defecto
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+    positionMarker = L.circleMarker([0, 0], {
+        radius: 7,
+        color: "#4f46e5",
+        fillColor: "#6366f1",
+        fillOpacity: 0.8,
+    }).addTo(map);
 
-  polyline = L.polyline([], { color: '#ffe600', weight: 5 }).addTo(map);
+    positionMarker.setLatLng([-34.6037, -58.3816]);
 }
 
-// Formatea milisegundos a HH:MM:SS
+// Calcula distancia en km entre 2 coords lat/lng con Haversine
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function toRad(value) {
+    return value * Math.PI / 180;
+}
+
+// Formatear tiempo hh:mm:ss
 function formatTime(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds - hours * 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+    let totalSeconds = Math.floor(ms / 1000);
+    let hours = Math.floor(totalSeconds / 3600);
+    let minutes = Math.floor((totalSeconds - hours * 3600) / 60);
+    let seconds = totalSeconds % 60;
+
+    return [
+        hours.toString().padStart(2, "0"),
+        minutes.toString().padStart(2, "0"),
+        seconds.toString().padStart(2, "0"),
+    ].join(":");
 }
 
-// Calcula distancia entre dos coordenadas (Haversine)
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371; // km
-  const dLat = (lat2-lat1)*Math.PI/180;
-  const dLon = (lon2-lon1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R*c;
+// Formatear ritmo min/km mm:ss
+function formatPace(pace) {
+    if (!isFinite(pace) || pace === 0) return "0:00";
+    const min = Math.floor(pace);
+    const sec = Math.round((pace - min) * 60);
+    return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
-// Actualiza estadísticas en pantalla
-function updateStats() {
-  distanceDisplay.textContent = distance.toFixed(2);
-  totalTimeDisplay.textContent = formatTime(elapsedTime);
-
-  if (distance > 0) {
-    const paceMinutes = (elapsedTime / 60000) / distance;
-    const paceMin = Math.floor(paceMinutes);
-    const paceSec = Math.floor((paceMinutes - paceMin) * 60);
-    paceDisplay.textContent = `${paceMin}:${paceSec.toString().padStart(2,'0')}`;
-  } else {
-    paceDisplay.textContent = '0:00';
-  }
-}
-
-// Agrega punto al mapa y actualiza ruta
-function addPosition(lat, lng) {
-  positions.push([lat, lng]);
-  polyline.setLatLngs(positions);
-  map.panTo([lat, lng]);
-}
-
-// Maneja la posición recibida por geolocalización
-function handlePosition(position) {
-  const { latitude, longitude } = position.coords;
-
-  if (positions.length > 0) {
-    const [lastLat, lastLng] = positions[positions.length-1];
-    const segmentDistance = haversine(lastLat, lastLng, latitude, longitude);
-    distance += segmentDistance;
-
-    // Aviso por voz cada km completo
-    if (distance - lastKmMark >= 1) {
-      lastKmMark = Math.floor(distance);
-      speak(`Kilómetro ${lastKmMark} completado`);
-    }
-  } else {
-    map.setView([latitude, longitude], 15);
-  }
-
-  addPosition(latitude, longitude);
-  updateStats();
-}
-
-// Controla el temporizador
-function startTimer() {
-  startTime = Date.now() - elapsedTime;
-  timerInterval = setInterval(() => {
-    elapsedTime = Date.now() - startTime;
-    updateStats();
-  }, 1000);
-}
-
-function stopTimer() {
-  clearInterval(timerInterval);
-  timerInterval = null;
-}
-
-// Guarda sesión en historial localStorage
-function saveSession() {
-  if (distance < 0.01) return; // Ignorar sesiones insignificantes
-
-  const session = {
-    date: new Date().toLocaleString(),
-    distance: distance.toFixed(2),
-    duration: formatTime(elapsedTime),
-    pace: paceDisplay.textContent,
-  };
-
-  let history = JSON.parse(localStorage.getItem('flokoob_history')) || [];
-  history.unshift(session);
-  if (history.length > 50) history.pop(); // Limita a últimas 50 sesiones
-
-  localStorage.setItem('flokoob_history', JSON.stringify(history));
-  renderHistory();
-}
-
-// Renderiza historial en UI
-function renderHistory() {
-  let history = JSON.parse(localStorage.getItem('flokoob_history')) || [];
-  logList.innerHTML = '';
-  if (history.length === 0) {
-    logList.innerHTML = '<li>No hay registros aún.</li>';
-    return;
-  }
-
-  history.forEach(s => {
-    const li = document.createElement('li');
-    li.textContent = `${s.date} - ${s.distance} km en ${s.duration} (Ritmo: ${s.pace})`;
-    logList.appendChild(li);
-  });
-}
-
-// Voz para avisos
+// Función voz sintetizada
 function speak(text) {
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'es-ES';
-    speechSynthesis.speak(utterance);
-  }
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+    }
 }
 
-// Eventos de botones
-startButton.addEventListener('click', () => {
-  if (isRunning) return;
-  isRunning = true;
-  lastKmMark = 0;
-  distance = 0;
-  elapsedTime = 0;
-  positions = [];
-  polyline.setLatLngs([]);
-  timerDisplay.classList.add('running');
+// Actualiza la pantalla del temporizador
+function updateTimer() {
+    elapsedTime = Date.now() - startTime;
+    timerDisplay.textContent = formatTime(elapsedTime);
 
-  // Inicia geolocalización
-  if (navigator.geolocation) {
-    watchId = navigator.geolocation.watchPosition(handlePosition, err => {
-      alert('Error al obtener ubicación: ' + err.message);
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
-  } else {
-    alert('Geolocalización no soportada por el navegador');
-  }
+    if (distance > 0) {
+        const paceMinPerKm = (elapsedTime / 1000) / 60 / distance; // min/km
+        paceDisplay.textContent = formatPace(paceMinPerKm);
+        avgPaceDisplay.textContent = formatPace(paceMinPerKm);
 
-  startTimer();
+        const speedKmh = distance / (elapsedTime / 3600000);
+        avgSpeedDisplay.textContent = speedKmh.toFixed(1) + " km/h";
 
-  startButton.disabled = true;
-  stopButton.disabled = false;
-});
+        const calories = Math.round(distance * 65); // aprox.
+        caloriesDisplay.textContent = calories.toString();
+    }
+}
 
-stopButton.addEventListener('click', () => {
-  if (!isRunning) return;
+// Control GPS y seguimiento
 
-  isRunning = false;
-  timerDisplay.classList.remove('running');
-  stopTimer();
+function watchPosition() {
+    if (!isTracking) return null;
 
-  if (watchId !== null) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-  }
+    return navigator.geolocation.watchPosition(
+        position => {
+            gpsStatus.textContent = "Conectado";
+            gpsStatus.classList.remove("text-red-500");
 
-  saveSession();
+            const { latitude, longitude, altitude, speed } = position.coords;
+            const currentPos = { lat: latitude, lng: longitude };
 
-  startButton.disabled = false;
-  stopButton.disabled = true;
-});
+            positionMarker.setLatLng([latitude, longitude]);
+            map.setView([latitude, longitude], map.getZoom());
 
-resetButton.addEventListener('click', () => {
-  if (isRunning) {
-    alert('Primero detenga el entrenamiento');
-    return;
-  }
-  distance = 0;
-  elapsedTime = 0;
-  positions = [];
-  polyline.setLatLngs([]);
-  updateStats();
-  timerDisplay.textContent = '00:00:00';
-});
+            routePoints.push([latitude, longitude]);
 
-// Inicialización
-window.onload = () => {
-  initMap();
-  renderHistory();
-  stopButton.disabled = true;
-  timerDisplay.textContent = '00:00:00';
-};
+            if (routeLine) {
+                map.removeLayer(routeLine);
+            }
+            routeLine = L.polyline(routePoints, { color: "#4f46e5", weight: 5 }).addTo(map);
+
+            if (lastPosition) {
+                const segmentDistance = calculateDistance(
+                    lastPosition.lat,
+                    lastPosition.lng,
+                    latitude,
+                    longitude
+                );
+                distance += segmentDistance;
+                distanceDisplay.textContent = distance.toFixed(2);
+
+                // Calcular ritmo y velocidad
+                const currentSpeedKmh = speed ? speed * 3.6 : 0;
+                if (currentSpeedKmh > parseFloat(maxSpeedDisplay.textContent)) {
+                    maxSpeedDisplay.textContent = currentSpeedKmh.toFixed(1) + " km/h";
+                }
+
+                // Elevación
+                if (altitude) {
+                    elevationDisplay.textContent = Math.round(altitude);
+                }
+
+                // Anunciar cada km completado
+                if (Math.floor(distance) > kmAnnounced) {
+                    kmAnnounced = Math.floor(distance);
+                    speak(`Kilómetro ${kmAnnounced} completado`);
+                }
+            }
+
+            lastPosition = currentPos;
+        },
+        error => {
+            gpsStatus.textContent = "Error";
+            gpsStatus.classList.add("text-red-500");
+            statusText.textContent = "Error de seguimiento GPS";
+            console.error("Error GPS:", error);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+}
+
+// Inicia seguimiento y timer
+function startTracking() {
+    if (isTracking && !isPaused) return;
+
+    if (!isTracking) {
+        // Reset inicial
+        routePoints = [];
+        distance = 0;
+        kmAnnounced = 0;
+        elapsedTime = 0;
+        lastPosition = null;
+        if (routeLine) {
+            map.removeLayer(routeLine);
+            routeLine = null;
+        }
+        distanceDisplay.textContent = "0.00";
+        paceDisplay.textContent = "0:00";
+        caloriesDisplay.textContent = "0";
+        elevationDisplay.textContent = "0";
+        avgSpeedDisplay.textContent = "0.0 km/h";
+        maxSpeedDisplay.textContent = "0.0 km/h";
+        avgPaceDisplay.textContent = "0:00 min/km";
+    }
+
+    startTime = Date.now() - elapsedTime;
+    isTracking = true;
+    isPaused = false;
+
+    watchId = watchPosition();
+
+    timerInterval = setInterval(updateTimer, 1000);
+
+    // UI
+    startBtn.classList.add("hidden");
+    pauseBtn.classList.remove("hidden");
+    stopBtn.classList.remove("hidden");
+    statusText.textContent = "Actividad en progreso";
+    statusText.classList.add("pulse");
+}
+
+// Pausar seguimiento y timer
+function pauseTracking() {
+    if (!isTracking || isPaused) return;
+    clearInterval(timerInterval);
+    isPaused = true;
+
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+
+    startBtn.classList.remove("hidden");
+    pauseBtn.classList.add("hidden");
+    statusText.textContent = "Actividad pausada";
+    statusText.classList.remove("pulse");
+}
+
+// Detener actividad y mostrar resumen
+function stopTracking() {
+    if (!isTracking) return;
+
+    clearInterval(timerInterval);
+    isTracking = false;
+    isPaused = false;
+    elapsedTime = 0;
+
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+
+    startBtn.classList.remove("hidden");
+    pauseBtn.classList.add("hidden");
+    stopBtn.classList.add("hidden");
+    statusText.textContent = "Actividad finalizada";
+    statusText.classList.remove("pulse");
+
+    alert(`¡Actividad finalizada!\nDistancia: ${distance.toFixed(2)} km\nTiempo: ${formatTime(elapsedTime)}\nRitmo medio: ${avgPaceDisplay.textContent}`);
+}
+
+// Eventos botones
+startBtn.addEventListener("click", startTracking);
+pauseBtn.addEventListener("click", pauseTracking);
+stopBtn.addEventListener("click", stopTracking);
+
+// Inicializar mapa
+initMap();
+
