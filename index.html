@@ -3,52 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>App de Running GPS - Flokoob</title>
-  <link rel="stylesheet" href="styles.css" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap"
-    rel="stylesheet"
-  />
-</head>
-<body>
-  <main class="container">
-    <h1 class="title">Flokoob Running App</h1>
+  <title>Flokoob Pro Running App</title>
 
-    <section class="stats">
-      <div class="stat">
-        <span class="stat-label">Distancia</span>
-        <span id="distance" class="stat-value">0.00 km</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Tiempo</span>
-        <span id="time" class="stat-value">00:00:00</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Ritmo</span>
-        <span id="pace" class="stat-value">0:00 min/km</span>
-      </div>
-    </section>
+  <!-- Fuente elegante -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
 
-    <section class="buttons">
-      <button id="startBtn" class="btn btn-start">Iniciar</button>
-      <button id="pauseBtn" class="btn btn-pause" disabled>Pausar</button>
-      <button id="resetBtn" class="btn btn-reset" disabled>Reiniciar</button>
-    </section>
-
-    <section class="map" id="map">
-      <!-- Mapa generado con Leaflet (opcional) -->
-    </section>
-
-    <section class="footer">
-      <small>© 2025 Flokoob | App para correr con GPS</small>
-    </section>
-  </main>
-
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <!-- Leaflet para mapa -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+    crossorigin=""
   />
+  
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1 class="title">🏃‍♂️ Flokoob Pro Running App</h1>
+    </header>
+
+    <section class="stats-grid">
+      <article class="stat-card">
+        <h2>Distancia</h2>
+        <p id="distance" class="stat-value">0.00 km</p>
+      </article>
+
+      <article class="stat-card">
+        <h2>Tiempo</h2>
+        <p id="time" class="stat-value">00:00:00</p>
+      </article>
+
+      <article class="stat-card">
+        <h2>Ritmo</h2>
+        <p id="pace" class="stat-value">0:00 min/km</p>
+      </article>
+
+      <article class="stat-card">
+        <h2>Velocidad</h2>
+        <p id="speed" class="stat-value">0.0 km/h</p>
+      </article>
+
+      <article class="stat-card">
+        <h2>Altitud</h2>
+        <p id="altitude" class="stat-value">-- m</p>
+      </article>
+    </section>
+
+    <section id="map" class="map"></section>
+
+    <section class="controls">
+      <button id="startBtn" class="btn btn-start" aria-label="Iniciar carrera">
+        ▶️ Iniciar
+      </button>
+      <button id="pauseBtn" class="btn btn-pause" disabled aria-label="Pausar carrera">
+        ⏸ Pausar
+      </button>
+      <button id="resetBtn" class="btn btn-reset" disabled aria-label="Reiniciar carrera">
+        🔄 Reiniciar
+      </button>
+      <button id="centerMapBtn" class="btn btn-mapcenter" title="Centrar mapa en posición">
+        📍
+      </button>
+    </section>
+
+    <section class="history">
+      <h3>Historial de sesiones</h3>
+      <ul id="historyList" class="history-list">
+        <!-- sesiones guardadas -->
+      </ul>
+    </section>
+
+    <footer class="footer">
+      <small>© 2025 Flokoob | App Profesional para Running con GPS</small>
+    </footer>
+  </main>
+
+  <!-- Leaflet -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+
   <script src="app.js"></script>
 </body>
 </html>
+
