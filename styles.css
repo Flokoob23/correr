@@ -1,11 +1,11 @@
-/* Reset de box sizing */
+/* Box sizing global */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-/* Variables y fuentes */
+/* Body y contenedor */
 body {
   font-family: 'Montserrat', sans-serif;
   background: #f9fafb;
@@ -17,18 +17,21 @@ body {
 
 .app-container {
   height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Mapa altura fija para que se vea bien */
+/* Mapa */
 #map {
   height: 360px;
   width: 100%;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
   margin-bottom: 1rem;
+  position: relative;
 }
 
-/* Botones estilos base */
+/* Botones */
 .btn-primary {
   background: linear-gradient(90deg, #2563eb, #7c3aed);
   transition: background-color 0.3s ease;
@@ -36,7 +39,6 @@ body {
 .btn-primary:hover {
   background: linear-gradient(90deg, #1e40af, #5b21b6);
 }
-
 .btn-secondary {
   background: linear-gradient(90deg, #6b7280, #374151);
 }
@@ -48,70 +50,48 @@ body {
 .metric-card {
   background: white;
   border-radius: 1rem;
-  box-shadow: 0 6px 16px rgb(0 0 0 / 0.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
   text-align: center;
 }
 
-/* Animaciones de entrada */
+/* Entrada animación */
 @keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from {opacity: 0; transform: translateY(30px);}
+  to {opacity: 1; transform: translateY(0);}
 }
-
 .slide-in {
   animation: slideIn 0.7s ease forwards;
 }
 
-/* Texto de estado animado */
+/* Estado animado */
 #status-text.pulse {
   animation: pulse 2s infinite;
 }
-
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
-/* Navegación inferior */
+/* Navegación activa */
 nav button.tab-active svg,
 nav button.tab-active span {
   color: #4f46e5;
 }
 
-/* Scroll personalizado para main */
-main::-webkit-scrollbar {
-  width: 8px;
-}
-
-main::-webkit-scrollbar-track {
-  background: #f3f4f6;
-  border-radius: 8px;
-}
-
-main::-webkit-scrollbar-thumb {
-  background-color: #4f46e5;
-  border-radius: 8px;
-}
+/* Scroll Main */
+main::-webkit-scrollbar {width: 8px;}
+main::-webkit-scrollbar-track {background: #f3f4f6; border-radius: 8px;}
+main::-webkit-scrollbar-thumb {background-color: #4f46e5; border-radius: 8px;}
 
 /* Modal Ticket */
 #ticket-modal {
   backdrop-filter: blur(5px);
 }
-
 #ticket-modal > div {
   max-width: 400px;
   box-sizing: border-box;
 }
+
 
 
 
