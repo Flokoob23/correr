@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>App de Running GPS - Flokoob</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <main class="container">
+    <h1 class="title">Flokoob Running App</h1>
+
+    <section class="stats">
+      <div class="stat">
+        <span class="stat-label">Distancia</span>
+        <span id="distance" class="stat-value">0.00 km</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Tiempo</span>
+        <span id="time" class="stat-value">00:00:00</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Ritmo</span>
+        <span id="pace" class="stat-value">0:00 min/km</span>
+      </div>
+    </section>
+
+    <section class="buttons">
+      <button id="startBtn" class="btn btn-start">Iniciar</button>
+      <button id="pauseBtn" class="btn btn-pause" disabled>Pausar</button>
+      <button id="resetBtn" class="btn btn-reset" disabled>Reiniciar</button>
+    </section>
+
+    <section class="map" id="map">
+      <!-- Mapa generado con Leaflet (opcional) -->
+    </section>
+
+    <section class="footer">
+      <small>© 2025 Flokoob | App para correr con GPS</small>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+  />
+  <script src="app.js"></script>
+</body>
+</html>
