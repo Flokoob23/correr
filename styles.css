@@ -1,96 +1,197 @@
-/* Box sizing global */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-/* Body y contenedor */
-body {
-  font-family: 'Montserrat', sans-serif;
-  background: #f9fafb;
+/* =================== RESET =================== */
+* {
   margin: 0;
-  height: 100vh;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: #000;
+  color: #fff;
+  overflow-x: hidden;
+}
+
+/* =================== UTILIDADES =================== */
+.hidden {
+  display: none;
+}
+
+.flex {
   display: flex;
+}
+
+.center {
+  justify-content: center;
+  align-items: center;
+}
+
+.column {
   flex-direction: column;
 }
 
-.app-container {
+/* =================== BIENVENIDA =================== */
+#welcomeScreen {
+  background: linear-gradient(to bottom, #000, #111);
   height: 100vh;
   display: flex;
   flex-direction: column;
-}
-
-/* Mapa */
-#map {
-  height: 360px;
-  width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
-  margin-bottom: 1rem;
-  position: relative;
-}
-
-/* Botones */
-.btn-primary {
-  background: linear-gradient(90deg, #2563eb, #7c3aed);
-  transition: background-color 0.3s ease;
-}
-.btn-primary:hover {
-  background: linear-gradient(90deg, #1e40af, #5b21b6);
-}
-.btn-secondary {
-  background: linear-gradient(90deg, #6b7280, #374151);
-}
-.btn-secondary:hover {
-  background: linear-gradient(90deg, #4b5563, #1f2937);
-}
-
-/* Tarjetas métricas */
-.metric-card {
-  background: white;
-  border-radius: 1rem;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+  justify-content: center;
+  align-items: center;
   text-align: center;
 }
 
-/* Entrada animación */
-@keyframes slideIn {
-  from {opacity: 0; transform: translateY(30px);}
-  to {opacity: 1; transform: translateY(0);}
-}
-.slide-in {
-  animation: slideIn 0.7s ease forwards;
+#welcomeScreen h1 {
+  color: #FFD700;
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
 }
 
-/* Estado animado */
-#status-text.pulse {
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+#welcomeScreen img {
+  width: 120px;
+  height: auto;
 }
 
-/* Navegación activa */
-nav button.tab-active svg,
-nav button.tab-active span {
-  color: #4f46e5;
+/* =================== MAPA =================== */
+#mapContainer {
+  height: 100vh;
+  width: 100%;
+  position: relative;
 }
 
-/* Scroll Main */
-main::-webkit-scrollbar {width: 8px;}
-main::-webkit-scrollbar-track {background: #f3f4f6; border-radius: 8px;}
-main::-webkit-scrollbar-thumb {background-color: #4f46e5; border-radius: 8px;}
+#map {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
 
-/* Modal Ticket */
-#ticket-modal {
-  backdrop-filter: blur(5px);
+#layerToggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 10px;
+  border-radius: 8px;
+  z-index: 1000;
 }
-#ticket-modal > div {
-  max-width: 400px;
-  box-sizing: border-box;
+
+#statsPanel {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 15px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  z-index: 1000;
 }
+
+/* =================== BOTONES =================== */
+button {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.start-btn {
+  background-color: #FFD700;
+  color: #000;
+  font-weight: bold;
+  margin-top: 20px;
+}
+
+.start-btn:hover {
+  background-color: #e0c200;
+}
+
+.stop-btn {
+  background-color: #FF6347;
+  color: #fff;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+.stop-btn:hover {
+  background-color: #e0523b;
+}
+
+/* =================== MODAL =================== */
+#summaryModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+#summaryModal .modal-content {
+  background: #111;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 90%;
+  color: #fff;
+  text-align: center;
+}
+
+#summaryModal h2 {
+  color: #FFD700;
+  margin-bottom: 10px;
+}
+
+#summaryModal button {
+  margin-top: 15px;
+}
+
+/* =================== RESPONSIVE =================== */
+@media (max-width: 768px) {
+  #statsPanel {
+    font-size: 0.9rem;
+    padding: 10px;
+  }
+
+  #welcomeScreen h1 {
+    font-size: 2rem;
+  }
+}
+
+/* =================== EXTENSIONES =================== */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #FFD700;
+  color: #000;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 10000;
+  animation: fadeInOut 4s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Línea para trazo del recorrido */
+.leaflet-interactive {
+  stroke: #FFD700 !important;
+  stroke-width: 5px !important;
+}
+
 
 
 
