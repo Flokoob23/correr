@@ -1,91 +1,102 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flokoob Pro Running App</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flokoob Garmin Style Running</title>
 
-  <!-- Fuente elegante -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+<!-- Fuente elegante -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
 
-  <!-- Leaflet para mapa -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
-    crossorigin=""
-  />
-  
-  <link rel="stylesheet" href="styles.css" />
+<!-- Leaflet -->
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+  crossorigin=""
+/>
+
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="container">
-    <header>
-      <h1 class="title">🏃‍♂️ Flokoob Pro Running App</h1>
-    </header>
+<main class="container">
+  <header>
+    <h1 class="title">🏃‍♂️ Flokoob Pro Running</h1>
+  </header>
 
-    <section class="stats-grid">
-      <article class="stat-card">
-        <h2>Distancia</h2>
-        <p id="distance" class="stat-value">0.00 km</p>
-      </article>
+  <!-- Controles iniciales -->
+  <section class="controls" id="controls">
+    <button id="startBtn" class="btn btn-start" aria-label="Iniciar carrera" title="Iniciar carrera">
+      <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg> Iniciar
+    </button>
+    <button id="pauseBtn" class="btn btn-pause" disabled aria-label="Pausar carrera" title="Pausar carrera">
+      <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Pausar
+    </button>
+    <button id="resetBtn" class="btn btn-reset" disabled aria-label="Reiniciar carrera" title="Reiniciar carrera">
+      <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.3-.5 2.48-1.32 3.36l1.46 1.46C19.21 15.15 20 13.64 20 12c0-4.42-3.58-8-8-8zM6.41 6.41L5 7.83 2 4.83l3.41-3.42 1.42 1.42zM4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6 0-1.3.5-2.48 1.32-3.36L6.41 6.41z"/></svg> Reiniciar
+    </button>
+  </section>
 
-      <article class="stat-card">
-        <h2>Tiempo</h2>
-        <p id="time" class="stat-value">00:00:00</p>
-      </article>
+  <!-- Estadísticas visibles SOLO cuando la carrera inicia -->
+  <section id="statsSection" class="stats-section hidden">
+    <div class="stat-row">
+      <div class="stat-item">
+        <span class="stat-label">Tiempo</span>
+        <span id="time" class="stat-value">00:00:00</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Distancia</span>
+        <span id="distance" class="stat-value">0.00 km</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Ritmo</span>
+        <span id="pace" class="stat-value">0:00 min/km</span>
+      </div>
+    </div>
+  </section>
 
-      <article class="stat-card">
-        <h2>Ritmo</h2>
-        <p id="pace" class="stat-value">0:00 min/km</p>
-      </article>
+  <!-- Mapa visible SOLO cuando inicia carrera -->
+  <section id="mapSection" class="map-section hidden">
+    <div id="map" class="map"></div>
+  </section>
 
-      <article class="stat-card">
-        <h2>Velocidad</h2>
-        <p id="speed" class="stat-value">0.0 km/h</p>
-      </article>
+  <!-- Modal km parcial -->
+  <div id="kmModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="kmModalTitle" aria-describedby="kmModalDesc">
+    <div class="modal-content">
+      <h2 id="kmModalTitle">¡Kilómetro completado!</h2>
+      <p id="kmModalDesc">Tiempo: <span id="modalTime">00:00:00</span></p>
+      <button id="closeKmModal" class="btn btn-modal-close" aria-label="Cerrar ventana">Cerrar</button>
+    </div>
+  </div>
 
-      <article class="stat-card">
-        <h2>Altitud</h2>
-        <p id="altitude" class="stat-value">-- m</p>
-      </article>
-    </section>
+  <!-- Modal resumen final -->
+  <div id="finishModal" class="modal" aria-hidden="true" role="dialog" aria-labelledby="finishModalTitle" aria-describedby="finishModalDesc">
+    <div class="modal-content">
+      <h2 id="finishModalTitle">¡Carrera terminada!</h2>
+      <p id="finishModalDesc">
+        Distancia: <span id="finalDistance">0.00 km</span><br />
+        Tiempo total: <span id="finalTime">00:00:00</span><br />
+        Ritmo promedio: <span id="finalPace">0:00 min/km</span>
+      </p>
+      <button id="closeFinishModal" class="btn btn-modal-close" aria-label="Cerrar ventana">Cerrar</button>
+    </div>
+  </div>
 
-    <section id="map" class="map"></section>
+  <!-- Historial de km parciales -->
+  <section id="historySection" class="history-section hidden">
+    <h3>Historial de kilómetros</h3>
+    <ul id="kmHistoryList" class="history-list"></ul>
+  </section>
 
-    <section class="controls">
-      <button id="startBtn" class="btn btn-start" aria-label="Iniciar carrera">
-        ▶️ Iniciar
-      </button>
-      <button id="pauseBtn" class="btn btn-pause" disabled aria-label="Pausar carrera">
-        ⏸ Pausar
-      </button>
-      <button id="resetBtn" class="btn btn-reset" disabled aria-label="Reiniciar carrera">
-        🔄 Reiniciar
-      </button>
-      <button id="centerMapBtn" class="btn btn-mapcenter" title="Centrar mapa en posición">
-        📍
-      </button>
-    </section>
+  <footer class="footer">
+    <small>© 2025 Flokoob | App estilo Garmin para correr con GPS</small>
+  </footer>
+</main>
 
-    <section class="history">
-      <h3>Historial de sesiones</h3>
-      <ul id="historyList" class="history-list">
-        <!-- sesiones guardadas -->
-      </ul>
-    </section>
-
-    <footer class="footer">
-      <small>© 2025 Flokoob | App Profesional para Running con GPS</small>
-    </footer>
-  </main>
-
-  <!-- Leaflet -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
-    crossorigin=""
-  ></script>
-
-  <script src="app.js"></script>
+<script
+  src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+  crossorigin=""
+></script>
+<script src="app.js"></script>
 </body>
 </html>
 
