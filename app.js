@@ -1,108 +1,221 @@
-let map;
-let watchId;
-let path = [];
-let polyline;
-let startTime;
-let interval;
-let kmCount = 0;
-let audio = new SpeechSynthesisUtterance();
-audio.lang = "es-ES";
+// app.js
 
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
-const timerEl = document.getElementById("timer");
+// Variables de estado
+let watchId = null;
+let isRunning = false;
+let startTime = 0;
+let elapsedTime = 0;
+let timerInterval = null;
 
-startBtn.addEventListener("click", startRun);
-stopBtn.addEventListener("click", stopRun);
+let positions = [];
+let distance = 0;
+let lastKmMark = 0;
 
-function initMap(position) {
-    const { latitude, longitude } = position.coords;
-    const center = { lat: latitude, lng: longitude };
-    map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 17,
-        center,
-        styles: [{ elementType: "geometry", stylers: [{ color: "#000000" }] }],
-        disableDefaultUI: true
-    });
+const startButton = document.getElementById('startButton');
+const stopButton = document.getElementById('stopButton');
+const resetButton = document.getElementById('resetButton');
+const timerDisplay = document.getElementById('timer');
+const distanceDisplay = document.getElementById('distance');
+const paceDisplay = document.getElementById('pace');
+const totalTimeDisplay = document.getElementById('totalTime');
+const logList = document.getElementById('logList');
+const mapElement = document.getElementById('map');
 
-    polyline = new google.maps.Polyline({
-        map,
-        path: [],
-        geodesic: true,
-        strokeColor: "#ffcc00",
-        strokeOpacity: 1.0,
-        strokeWeight: 5
-    });
+let map, polyline;
+
+// Inicialización del mapa
+function initMap() {
+  map = L.map('map').setView([0, 0], 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  polyline = L.polyline([], { color: '#ffe600', weight: 5 }).addTo(map);
 }
 
-function startRun() {
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    path = [];
-    kmCount = 0;
-    startTime = Date.now();
-
-    navigator.geolocation.getCurrentPosition(initMap, console.error, {
-        enableHighAccuracy: true
-    });
-
-    watchId = navigator.geolocation.watchPosition(updatePosition, console.error, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10000
-    });
-
-    interval = setInterval(updateTimer, 1000);
+// Formatea milisegundos a HH:MM:SS
+function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds - hours * 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours.toString().padStart(2,'0')}:${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
 }
 
-function stopRun() {
-    navigator.geolocation.clearWatch(watchId);
-    clearInterval(interval);
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
+// Calcula distancia entre dos coordenadas (Haversine)
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371; // km
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
 }
 
-function updatePosition(position) {
-    const { latitude, longitude } = position.coords;
-    const latLng = new google.maps.LatLng(latitude, longitude);
-    path.push(latLng);
+// Actualiza estadísticas en pantalla
+function updateStats() {
+  distanceDisplay.textContent = distance.toFixed(2);
+  totalTimeDisplay.textContent = formatTime(elapsedTime);
 
-    if (polyline) {
-        const oldPath = polyline.getPath();
-        oldPath.push(latLng);
-        polyline.setPath(oldPath);
-        map.panTo(latLng);
+  if (distance > 0) {
+    const paceMinutes = (elapsedTime / 60000) / distance;
+    const paceMin = Math.floor(paceMinutes);
+    const paceSec = Math.floor((paceMinutes - paceMin) * 60);
+    paceDisplay.textContent = `${paceMin}:${paceSec.toString().padStart(2,'0')}`;
+  } else {
+    paceDisplay.textContent = '0:00';
+  }
+}
+
+// Agrega punto al mapa y actualiza ruta
+function addPosition(lat, lng) {
+  positions.push([lat, lng]);
+  polyline.setLatLngs(positions);
+  map.panTo([lat, lng]);
+}
+
+// Maneja la posición recibida por geolocalización
+function handlePosition(position) {
+  const { latitude, longitude } = position.coords;
+
+  if (positions.length > 0) {
+    const [lastLat, lastLng] = positions[positions.length-1];
+    const segmentDistance = haversine(lastLat, lastLng, latitude, longitude);
+    distance += segmentDistance;
+
+    // Aviso por voz cada km completo
+    if (distance - lastKmMark >= 1) {
+      lastKmMark = Math.floor(distance);
+      speak(`Kilómetro ${lastKmMark} completado`);
     }
+  } else {
+    map.setView([latitude, longitude], 15);
+  }
 
-    // Calcular distancia total
-    let totalDistance = 0;
-    for (let i = 1; i < path.length; i++) {
-        totalDistance += google.maps.geometry.spherical.computeDistanceBetween(
-            path[i - 1],
-            path[i]
-        );
-    }
-
-    // Anunciar cada kilómetro
-    const kmCompleted = Math.floor(totalDistance / 1000);
-    if (kmCompleted > kmCount) {
-        kmCount = kmCompleted;
-        const elapsed = (Date.now() - startTime) / 1000;
-        const pace = elapsed / kmCount;
-        const min = Math.floor(pace / 60);
-        const sec = Math.floor(pace % 60);
-        speak(`Kilómetro ${kmCount} completado en ${min} minutos y ${sec} segundos.`);
-    }
+  addPosition(latitude, longitude);
+  updateStats();
 }
 
-function updateTimer() {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
-    const seconds = String(elapsed % 60).padStart(2, '0');
-    timerEl.textContent = `${minutes}:${seconds}`;
+// Controla el temporizador
+function startTimer() {
+  startTime = Date.now() - elapsedTime;
+  timerInterval = setInterval(() => {
+    elapsedTime = Date.now() - startTime;
+    updateStats();
+  }, 1000);
 }
 
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+// Guarda sesión en historial localStorage
+function saveSession() {
+  if (distance < 0.01) return; // Ignorar sesiones insignificantes
+
+  const session = {
+    date: new Date().toLocaleString(),
+    distance: distance.toFixed(2),
+    duration: formatTime(elapsedTime),
+    pace: paceDisplay.textContent,
+  };
+
+  let history = JSON.parse(localStorage.getItem('flokoob_history')) || [];
+  history.unshift(session);
+  if (history.length > 50) history.pop(); // Limita a últimas 50 sesiones
+
+  localStorage.setItem('flokoob_history', JSON.stringify(history));
+  renderHistory();
+}
+
+// Renderiza historial en UI
+function renderHistory() {
+  let history = JSON.parse(localStorage.getItem('flokoob_history')) || [];
+  logList.innerHTML = '';
+  if (history.length === 0) {
+    logList.innerHTML = '<li>No hay registros aún.</li>';
+    return;
+  }
+
+  history.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = `${s.date} - ${s.distance} km en ${s.duration} (Ritmo: ${s.pace})`;
+    logList.appendChild(li);
+  });
+}
+
+// Voz para avisos
 function speak(text) {
-    audio.text = text;
-    window.speechSynthesis.speak(audio);
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES';
+    speechSynthesis.speak(utterance);
+  }
 }
+
+// Eventos de botones
+startButton.addEventListener('click', () => {
+  if (isRunning) return;
+  isRunning = true;
+  lastKmMark = 0;
+  distance = 0;
+  elapsedTime = 0;
+  positions = [];
+  polyline.setLatLngs([]);
+  timerDisplay.classList.add('running');
+
+  // Inicia geolocalización
+  if (navigator.geolocation) {
+    watchId = navigator.geolocation.watchPosition(handlePosition, err => {
+      alert('Error al obtener ubicación: ' + err.message);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+  } else {
+    alert('Geolocalización no soportada por el navegador');
+  }
+
+  startTimer();
+
+  startButton.disabled = true;
+  stopButton.disabled = false;
+});
+
+stopButton.addEventListener('click', () => {
+  if (!isRunning) return;
+
+  isRunning = false;
+  timerDisplay.classList.remove('running');
+  stopTimer();
+
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+
+  saveSession();
+
+  startButton.disabled = false;
+  stopButton.disabled = true;
+});
+
+resetButton.addEventListener('click', () => {
+  if (isRunning) {
+    alert('Primero detenga el entrenamiento');
+    return;
+  }
+  distance = 0;
+  elapsedTime = 0;
+  positions = [];
+  polyline.setLatLngs([]);
+  updateStats();
+  timerDisplay.textContent = '00:00:00';
+});
+
+// Inicialización
+window.onload = () => {
+  initMap();
+  renderHistory();
+  stopButton.disabled = true;
+  timerDisplay.textContent = '00:00:00';
+};
