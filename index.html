@@ -1,27 +1,46 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FLOKOOB - App de Correr</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY" defer></script>
-    <script src="app.js" defer></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flokoob - App de Running</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
-    <div class="container">
-        <h1 class="title">FLOKOOB - App de Correr</h1>
-        <div class="controls">
-            <button id="startBtn">🏁 Iniciar</button>
-            <button id="stopBtn" disabled>⏹️ Detener</button>
-        </div>
-        <div id="timer">00:00</div>
-        <div id="map"></div>
+  <div class="container">
+    <h1 class="title">🏃‍♂️ FLOKOOB - RUNNING APP</h1>
+    <div id="intro" class="section">
+      <p>Bienvenido a la mejor experiencia para corredores</p>
+      <div class="controls">
+        <button id="startButton">Iniciar Entrenamiento</button>
+        <button id="stopButton" disabled>Detener</button>
+        <button id="resetButton">Reiniciar</button>
+      </div>
+      <div id="timer">00:00:00</div>
     </div>
+
+    <div id="mapSection" class="section">
+      <h2>📍 Recorrido en Tiempo Real</h2>
+      <div id="map"></div>
+    </div>
+
+    <div id="statsSection" class="section">
+      <h2>📊 Estadísticas</h2>
+      <ul id="stats">
+        <li><strong>Distancia:</strong> <span id="distance">0.00</span> km</li>
+        <li><strong>Ritmo Promedio:</strong> <span id="pace">0:00</span> min/km</li>
+        <li><strong>Tiempo Total:</strong> <span id="totalTime">00:00:00</span></li>
+      </ul>
+    </div>
+
+    <div id="logSection" class="section">
+      <h2>📚 Historial</h2>
+      <ul id="logList"></ul>
+    </div>
+  </div>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_AQUI"></script>
+  <script src="app.js"></script>
 </body>
-
 </html>
-
-
