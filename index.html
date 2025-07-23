@@ -1,102 +1,54 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FLOKOOB - Tu cronómetro de bolsillo</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FLOKOOB - tu cronómetro de bolsillo</title>
 
-    <!-- Leaflet CSS -->
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-sA+gVwF7OkJhHaQnY7jKwXQY1u6eWkxIj9DPM1Jb+Gc="
-      crossorigin=""
-    />
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+4tpBMRVbFfCxWtY6CoF+oPyZbbk8phDFyYfD7LZU="
+    crossorigin=""
+  />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Estilos propios -->
-    <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div id="app">
-        <!-- Contenedor del mapa -->
-        <div id="map" tabindex="0"></div>
+  <header>
+    <h1>FLOKOOB</h1>
+    <h2>tu cronómetro de bolsillo</h2>
+  </header>
 
-        <!-- Mensaje permiso ubicación -->
-        <div id="location-permission" class="hidden">
-            <p>Por favor, habilita la ubicación para continuar.</p>
-            <button id="requestLocationBtn">Permitir ubicación</button>
-        </div>
+  <div id="map"></div>
 
-        <!-- Controles -->
-        <div id="controls">
-            <button id="startBtn">Iniciar</button>
-            <button id="pauseBtn" disabled>Pausar</button>
-            <button id="stopBtn" disabled>Detener</button>
-            <button id="lapBtn" disabled>Parcial</button>
-            <button id="layerBtn">Capas</button>
-        </div>
-
-        <!-- Tabs -->
-        <div id="tabs">
-            <button class="tab-btn tab-active" data-tab="summary">Resumen</button>
-            <button class="tab-btn" data-tab="splits">Parciales</button>
-            <button class="tab-btn" data-tab="charts">Gráficos</button>
-        </div>
-
-        <!-- Contenido tabs -->
-        <div id="summary-tab" class="tab-content">
-            <h2>Resumen de la actividad</h2>
-            <p>Fecha: <span id="activity-date"></span></p>
-            <p>Duración: <span id="activity-duration">00:00:00</span></p>
-            <p>Distancia: <span id="activity-distance">0.00 km</span></p>
-            <p>Ritmo: <span id="activity-pace">--'--"</span></p>
-            <p>Calorías: <span id="activity-calories">0 kcal</span></p>
-            <p>Desnivel: <span id="activity-elevation">0 m</span></p>
-        </div>
-
-        <div id="splits-tab" class="tab-content hidden">
-            <h2>Parciales</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Parcial</th>
-                        <th>Tiempo</th>
-                        <th>Ritmo</th>
-                        <th>Elevación</th>
-                    </tr>
-                </thead>
-                <tbody id="splits-body">
-                    <tr><td colspan="4">No hay parciales registrados</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div id="charts-tab" class="tab-content hidden">
-            <h2>Gráficos</h2>
-            <div class="chart-container">
-                <canvas id="paceChart"></canvas>
-            </div>
-            <div class="chart-container">
-                <canvas id="elevationChart"></canvas>
-            </div>
-        </div>
-
-        <button id="saveActivityBtn">Guardar actividad</button>
+  <section id="stats">
+    <div><strong>Tiempo:</strong> <span id="time">00:00:00</span></div>
+    <div><strong>Distancia:</strong> <span id="distance">0.00</span> km</div>
+    <div><strong>Ritmo:</strong> <span id="pace">0:00</span> min/km</div>
+    <div><strong>Desnivel:</strong> <span id="elevation">0</span> m</div>
+    <div><strong>Parciales:</strong>
+      <ul id="splits"></ul>
     </div>
+  </section>
 
-    <!-- Leaflet JS -->
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-o9N1jvX0DXVYvy7nt7F4cso6w7RD2j7OtwDng+78D6w="
-      crossorigin=""
-    ></script>
+  <section id="chart-container">
+    <canvas id="elevationChart"></canvas>
+  </section>
 
-    <!-- Script propio -->
-    <script src="app.js"></script>
+  <button id="startStopBtn">Iniciar</button>
+  <button id="resetBtn" disabled>Resetear</button>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o8EjibT6K12XXKKx3RQ2OR0kX9F2FLeNk9woKl1ZjvE="
+    crossorigin=""
+  ></script>
+  <script src="app.js"></script>
 </body>
 </html>
-
 
