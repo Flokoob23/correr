@@ -1,4 +1,3 @@
-// Variables globales
 let map, userMarker, polyline;
 let watchId = null;
 let pathCoords = [];
@@ -18,53 +17,38 @@ const paceEl = document.getElementById("pace");
 const elevationEl = document.getElementById("elevation");
 const splitsEl = document.getElementById("splits");
 
-// Inicializar mapa y capas
 function initMap() {
   map = L.map("map", {
     zoomControl: true,
     minZoom: 3,
   }).setView([0, 0], 13);
 
-  // Capas base (cambié Satélite por otra opción libre)
   const baseLayers = {
     "Calles": L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       { maxZoom: 19, attribution: "&copy; OpenStreetMap" }
     ),
-
     "Terreno": L.tileLayer(
       "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
       { maxZoom: 17, attribution: "© OpenTopoMap" }
     ),
-
     "Toner": L.tileLayer(
       "https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png",
       { maxZoom: 20, attribution: "Map tiles by Stamen Design" }
     ),
   };
 
-  // Añadir capa calles por defecto
   baseLayers["Calles"].addTo(map);
-
-  // Control de capas
   L.control.layers(baseLayers).addTo(map);
 }
 
-// Formatea segundos a hh:mm:ss
 function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600)
-    .toString()
-    .padStart(2, "0");
-  const m = Math.floor((seconds % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
+  const h = Math.floor(seconds / 3600).toString().padStart(2, "0");
+  const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
+  const s = Math.floor(seconds % 60).toString().padStart(2, "0");
   return `${h}:${m}:${s}`;
 }
 
-// Formatea ritmo min/km a mm:ss
 function formatPace(pace) {
   if (!pace || pace === Infinity) return "0:00";
   const min = Math.floor(pace);
@@ -72,7 +56,6 @@ function formatPace(pace) {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
-// Calcular distancia entre 2 puntos en metros con haversine
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -80,16 +63,12 @@ function haversine(lat1, lon1, lat2, lon2) {
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-// Actualizar estadísticas en pantalla
 function updateStats() {
   if (!startTime) {
     timeEl.textContent = "00:00:00";
@@ -104,14 +83,12 @@ function updateStats() {
   timeEl.textContent = formatTime(elapsedSec);
   distanceEl.textContent = (distance / 1000).toFixed(2);
 
-  // Ritmo = minutos por km = tiempo en minutos / distancia en km
   let pace = distance > 0 ? elapsedSec / 60 / (distance / 1000) : 0;
   paceEl.textContent = formatPace(pace);
 
   elevationEl.textContent = elevationGain.toFixed(0);
 }
 
-// Calcular desnivel positivo acumulado
 function calcElevationGain(newEle) {
   if (elevationData.length === 0) {
     elevationData.push(newEle);
@@ -124,7 +101,6 @@ function calcElevationGain(newEle) {
   return gain;
 }
 
-// Parciales cada 1km
 function checkSplits() {
   const km = Math.floor(distance / 1000);
   if (km > 0 && splits[splits.length - 1] !== km) {
@@ -132,15 +108,12 @@ function checkSplits() {
     const elapsedSec = (now - startTime) / 1000;
     splits.push(km);
 
-    // Mostrar parcial
     const li = document.createElement("li");
     li.textContent = `Km ${km} - Tiempo: ${formatTime(elapsedSec)}`;
     splitsEl.prepend(li);
 
-    // Aviso visual
     alert(`Parcial ${km} km: ${formatTime(elapsedSec)}`);
 
-    // Voz
     if ("speechSynthesis" in window) {
       const msg = new SpeechSynthesisUtterance(
         `Kilómetro ${km}, tiempo ${formatTime(elapsedSec)}`
@@ -150,7 +123,7 @@ function checkSplits() {
   }
 }
 
-// Inicializar gráfico de elevación con Chart.js
+// Gráfico con Chart.js
 let elevationChart;
 function initChart() {
   const ctx = document.getElementById("elevationChart").getContext("2d");
@@ -175,24 +148,19 @@ function initChart() {
       animation: false,
       responsive: true,
       scales: {
-        x: {
-          display: false,
-        },
+        x: { display: false },
         y: {
           ticks: { color: "#ffd600" },
           grid: { color: "#444" },
         },
       },
       plugins: {
-        legend: {
-          labels: { color: "#ffd600" },
-        },
+        legend: { labels: { color: "#ffd600" } },
       },
     },
   });
 }
 
-// Actualizar gráfico con elevación
 function updateChart() {
   if (!elevationChart) return;
   elevationChart.data.labels = pathCoords.map((_, i) => i);
@@ -200,16 +168,13 @@ function updateChart() {
   elevationChart.update("none");
 }
 
-// Manejar nueva posición
 function onPositionUpdate(pos) {
   const { latitude, longitude, altitude } = pos.coords;
 
-  // Actualizar marcador o crearlo
   if (!userMarker) {
     userMarker = L.marker([latitude, longitude], {
       icon: L.icon({
-        iconUrl:
-          "https://cdn-icons-png.flaticon.com/512/64/64113.png",
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/64/64113.png",
         iconSize: [25, 25],
         iconAnchor: [12, 25],
       }),
@@ -218,23 +183,15 @@ function onPositionUpdate(pos) {
     userMarker.setLatLng([latitude, longitude]);
   }
 
-  // Centrar mapa en la ubicación actual la primera vez
   if (pathCoords.length === 0) {
     map.setView([latitude, longitude], 15);
   }
 
-  // Añadir nuevo punto
   const newPoint = [latitude, longitude];
   const newEle = altitude ?? 0;
 
-  // Calcular distancia acumulada
   if (lastPosition) {
-    const d = haversine(
-      lastPosition[0],
-      lastPosition[1],
-      latitude,
-      longitude
-    );
+    const d = haversine(lastPosition[0], lastPosition[1], latitude, longitude);
     if (d > 0.5) {
       distance += d;
       const gain = calcElevationGain(newEle);
@@ -254,7 +211,6 @@ function onPositionUpdate(pos) {
       checkSplits();
     }
   } else {
-    // Primer punto
     pathCoords.push(newPoint);
     elevationData.push(newEle);
     polyline = L.polyline(pathCoords, {
@@ -268,14 +224,12 @@ function onPositionUpdate(pos) {
   lastPosition = newPoint;
 }
 
-// Manejar error de geolocalización
 function onPositionError(err) {
   alert(
     "Error al obtener ubicación: " + err.message + ". Por favor, activa GPS y permisos."
   );
 }
 
-// Inicio y parada del tracking
 function toggleTracking() {
   if (watchId === null) {
     if (!navigator.geolocation) {
@@ -302,10 +256,8 @@ function toggleTracking() {
       timeout: 10000,
     });
 
-    // Timer para actualizar tiempo cada segundo
     timerInterval = setInterval(updateStats, 1000);
   } else {
-    // Detener tracking
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
     startStopBtn.textContent = "Iniciar";
@@ -319,7 +271,6 @@ function resetTracking() {
     alert("Para resetear primero detén el seguimiento.");
     return;
   }
-  // Limpiar datos
   distance = 0;
   elevationGain = 0;
   pathCoords = [];
@@ -330,7 +281,6 @@ function resetTracking() {
   updateStats();
   updateChart();
 
-  // Quitar marcador y polyline
   if (userMarker) {
     map.removeLayer(userMarker);
     userMarker = null;
@@ -343,11 +293,9 @@ function resetTracking() {
   resetBtn.disabled = true;
 }
 
-// Event listeners botones
 startStopBtn.addEventListener("click", toggleTracking);
 resetBtn.addEventListener("click", resetTracking);
 
-// Inicializar mapa y gráfico
 initMap();
 initChart();
 updateStats();
