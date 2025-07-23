@@ -21,29 +21,25 @@ const splitsEl = document.getElementById("splits");
 // Inicializar mapa y capas
 function initMap() {
   map = L.map("map", {
-    zoomControl: false,
+    zoomControl: true,
     minZoom: 3,
   }).setView([0, 0], 13);
 
-  // Capas base
+  // Capas base (cambié Satélite por otra opción libre)
   const baseLayers = {
     "Calles": L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      { maxZoom: 19, attribution: "&copy; OSM" }
-    ),
-
-    "Satélite": L.tileLayer(
-      "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-      {
-        maxZoom: 20,
-        subdomains: ["mt0", "mt1", "mt2", "mt3"],
-        attribution: "Google Satellite",
-      }
+      { maxZoom: 19, attribution: "&copy; OpenStreetMap" }
     ),
 
     "Terreno": L.tileLayer(
       "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
       { maxZoom: 17, attribution: "© OpenTopoMap" }
+    ),
+
+    "Toner": L.tileLayer(
+      "https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png",
+      { maxZoom: 20, attribution: "Map tiles by Stamen Design" }
     ),
   };
 
@@ -95,6 +91,14 @@ function haversine(lat1, lon1, lat2, lon2) {
 
 // Actualizar estadísticas en pantalla
 function updateStats() {
+  if (!startTime) {
+    timeEl.textContent = "00:00:00";
+    distanceEl.textContent = "0.00";
+    paceEl.textContent = "0:00";
+    elevationEl.textContent = "0";
+    return;
+  }
+
   const now = Date.now();
   const elapsedSec = Math.floor((now - startTime) / 1000);
   timeEl.textContent = formatTime(elapsedSec);
