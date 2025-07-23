@@ -1,66 +1,101 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FLOKOOB - Running App</title>
-  <link rel="stylesheet" href="styles.css" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-sA+e2tGzEypA+uAsOHT/34YIZvVzQIVM+eA9qmVXNuk="
-    crossorigin=""
-  />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FLOKOOB - Tu cronómetro de bolsillo</title>
+
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-sA+gVwF7OkJhHaQnY7jKwXQY1u6eWkxIj9DPM1Jb+Gc="
+      crossorigin=""
+    />
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Estilos propios -->
+    <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="welcome-screen">
-    <h1>FLOKOOB - APP DE ENTRENAMIENTO</h1>
-    <img src="logo.png" alt="Logo FLOKOOB" class="logo" />
-  </div>
+    <div id="app">
+        <!-- Contenedor del mapa -->
+        <div id="map" tabindex="0"></div>
 
-  <div class="start-screen hidden">
-    <h2>¡Hola Atleta!</h2>
-    <button id="startRun">🏃‍♂️ Iniciar Entrenamiento</button>
-  </div>
+        <!-- Mensaje permiso ubicación -->
+        <div id="location-permission" class="hidden">
+            <p>Por favor, habilita la ubicación para continuar.</p>
+            <button id="requestLocationBtn">Permitir ubicación</button>
+        </div>
 
-  <div class="map-screen hidden">
-    <div id="map"></div>
-    <div class="stats">
-      <p>⏱️ Tiempo: <span id="time">00:00</span></p>
-      <p>📏 Distancia: <span id="distance">0.00 km</span></p>
-      <p>⚡ Ritmo: <span id="pace">--</span> min/km</p>
+        <!-- Controles -->
+        <div id="controls">
+            <button id="startBtn">Iniciar</button>
+            <button id="pauseBtn" disabled>Pausar</button>
+            <button id="stopBtn" disabled>Detener</button>
+            <button id="lapBtn" disabled>Parcial</button>
+            <button id="layerBtn">Capas</button>
+        </div>
+
+        <!-- Tabs -->
+        <div id="tabs">
+            <button class="tab-btn tab-active" data-tab="summary">Resumen</button>
+            <button class="tab-btn" data-tab="splits">Parciales</button>
+            <button class="tab-btn" data-tab="charts">Gráficos</button>
+        </div>
+
+        <!-- Contenido tabs -->
+        <div id="summary-tab" class="tab-content">
+            <h2>Resumen de la actividad</h2>
+            <p>Fecha: <span id="activity-date"></span></p>
+            <p>Duración: <span id="activity-duration">00:00:00</span></p>
+            <p>Distancia: <span id="activity-distance">0.00 km</span></p>
+            <p>Ritmo: <span id="activity-pace">--'--"</span></p>
+            <p>Calorías: <span id="activity-calories">0 kcal</span></p>
+            <p>Desnivel: <span id="activity-elevation">0 m</span></p>
+        </div>
+
+        <div id="splits-tab" class="tab-content hidden">
+            <h2>Parciales</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Parcial</th>
+                        <th>Tiempo</th>
+                        <th>Ritmo</th>
+                        <th>Elevación</th>
+                    </tr>
+                </thead>
+                <tbody id="splits-body">
+                    <tr><td colspan="4">No hay parciales registrados</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="charts-tab" class="tab-content hidden">
+            <h2>Gráficos</h2>
+            <div class="chart-container">
+                <canvas id="paceChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="elevationChart"></canvas>
+            </div>
+        </div>
+
+        <button id="saveActivityBtn">Guardar actividad</button>
     </div>
-    <button id="finishRun" class="btn-end">🏁 Finalizar</button>
-    <div id="layer-toggle">
-      <button data-layer="osm">🗺️ Mapa</button>
-      <button data-layer="sat">🛰️ Satélite</button>
-    </div>
-  </div>
 
-  <!-- Modal Ticket -->
-  <div class="modal hidden" id="ticketModal">
-    <div class="modal-content">
-      <h2>🏅 Entrenamiento Finalizado</h2>
-      <p><strong>Nombre:</strong> Emanuel</p>
-      <p><strong>Tiempo:</strong> <span id="finalTime"></span></p>
-      <p><strong>Distancia:</strong> <span id="finalDistance"></span></p>
-      <p><strong>Ritmo:</strong> <span id="finalPace"></span></p>
-      <a
-        id="shareWsp"
-        target="_blank"
-        href="https://wa.me/?text=¡Entrenamiento+completado+con+FLOKOOB!"
-        >📤 Compartir por WhatsApp</a
-      >
-      <button id="closeModal">Cerrar</button>
-    </div>
-  </div>
+    <!-- Leaflet JS -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-o9N1jvX0DXVYvy7nt7F4cso6w7RD2j7OtwDng+78D6w="
+      crossorigin=""
+    ></script>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j8MkfG5G6Wc1N2zZQAsRX5le5DAD1z04xldh2oY="
-    crossorigin=""
-  ></script>
-  <script src="app.js"></script>
+    <!-- Script propio -->
+    <script src="app.js"></script>
 </body>
 </html>
 
