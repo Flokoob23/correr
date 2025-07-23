@@ -1,600 +1,349 @@
 // Variables globales
-let map;
-let userMarker = null;
-let routePolyline;
+let map, userMarker, polyline;
 let watchId = null;
-let timerInterval = null;
-
-let hasLocationPermission = false;
-let isTracking = false;
-let isPaused = false;
-
+let pathCoords = [];
+let elevationData = [];
 let startTime = null;
-let pauseTime = null;
-
-let trackPoints = [];
-let laps = [];
-let splits = [];
-let currentSplit = 0;
-
-let totalDistance = 0;
-let elevationGain = 0;
+let timerInterval = null;
+let distance = 0;
 let lastPosition = null;
+let splits = [];
+let elevationGain = 0;
 
-let paceChart = null;
-let elevationChart = null;
+const startStopBtn = document.getElementById("startStopBtn");
+const resetBtn = document.getElementById("resetBtn");
+const timeEl = document.getElementById("time");
+const distanceEl = document.getElementById("distance");
+const paceEl = document.getElementById("pace");
+const elevationEl = document.getElementById("elevation");
+const splitsEl = document.getElementById("splits");
 
-// Inicializar mapa y elementos
+// Inicializar mapa y capas
 function initMap() {
-    map = L.map('map').setView([0, 0], 13);
+  map = L.map("map", {
+    zoomControl: false,
+    minZoom: 3,
+  }).setView([0, 0], 13);
 
-    const osmLayer = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }
-    ).addTo(map);
+  // Capas base
+  const baseLayers = {
+    "Calles": L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: "&copy; OSM" }
+    ),
 
-    routePolyline = L.polyline([], { color: '#FFD700' }).addTo(map);
+    "Satélite": L.tileLayer(
+      "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      {
+        maxZoom: 20,
+        subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        attribution: "Google Satellite",
+      }
+    ),
+
+    "Terreno": L.tileLayer(
+      "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      { maxZoom: 17, attribution: "© OpenTopoMap" }
+    ),
+  };
+
+  // Añadir capa calles por defecto
+  baseLayers["Calles"].addTo(map);
+
+  // Control de capas
+  L.control.layers(baseLayers).addTo(map);
 }
 
-// Inicializar ubicación
-function initializeLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                const { latitude, longitude } = position.coords;
-                map.setView([latitude, longitude], 15);
-
-                // Crear marcador del usuario
-                if (userMarker) {
-                    userMarker.setLatLng([latitude, longitude]);
-                } else {
-                    userMarker = L.marker([latitude, longitude], {
-                        icon: L.divIcon({
-                            className: 'user-marker',
-                            html: `<div style="background-color: #FFD700; border: 2px solid #121212; border-radius: 50%; width: 16px; height: 16px;"></div>`,
-                            iconSize: [16, 16],
-                            iconAnchor: [8, 8]
-                        })
-                    }).addTo(map);
-                }
-
-                lastPosition = {
-                    lat: latitude,
-                    lng: longitude,
-                    elevation: position.coords.altitude || 0,
-                    time: new Date()
-                };
-
-                document.getElementById('location-permission').classList.add('hidden');
-                hasLocationPermission = true;
-            },
-            error => {
-                console.error('Error al obtener la ubicación:', error);
-                document.getElementById('location-permission').classList.remove('hidden');
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-    } else {
-        alert('Tu navegador no soporta geolocalización.');
-    }
+// Formatea segundos a hh:mm:ss
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600)
+    .toString()
+    .padStart(2, "0");
+  const m = Math.floor((seconds % 3600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const s = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${h}:${m}:${s}`;
 }
 
-// Configurar event listeners
-function setupEventListeners() {
-    document.getElementById('requestLocationBtn').addEventListener('click', () => {
-        initializeLocation();
-    });
-
-    document.getElementById('startBtn').addEventListener('click', startTracking);
-    document.getElementById('pauseBtn').addEventListener('click', pauseTracking);
-    document.getElementById('stopBtn').addEventListener('click', stopTracking);
-    document.getElementById('lapBtn').addEventListener('click', markLap);
-    document.getElementById('layerBtn').addEventListener('click', () => {
-        document.querySelector('.leaflet-control-layers').classList.toggle('leaflet-control-layers-expanded');
-    });
-
-    // Tabs
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Desactivar todos los tabs
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-
-            // Activar tab seleccionado
-            btn.classList.add('tab-active');
-            document.getElementById(`${btn.dataset.tab}-tab`).classList.remove('hidden');
-        });
-    });
-
-    document.getElementById('saveActivityBtn').addEventListener('click', saveActivity);
+// Formatea ritmo min/km a mm:ss
+function formatPace(pace) {
+  if (!pace || pace === Infinity) return "0:00";
+  const min = Math.floor(pace);
+  const sec = Math.round((pace - min) * 60);
+  return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
-// Iniciar seguimiento
-function startTracking() {
-    if (!hasLocationPermission) {
-        initializeLocation();
-        return;
-    }
+// Calcular distancia entre 2 puntos en metros con haversine
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
 
-    if (isPaused) {
-        isPaused = false;
-        const pauseDuration = new Date() - pauseTime;
-        startTime = new Date(startTime.getTime() + pauseDuration);
-    } else if (!isTracking) {
-        startTime = new Date();
-
-        if (trackPoints.length === 0 || confirm('¿Iniciar una nueva actividad? Se perderán los datos actuales.')) {
-            trackPoints = [];
-            splits = [];
-            laps = [];
-            currentSplit = 0;
-            totalDistance = 0;
-            elevationGain = 0;
-            routePolyline.setLatLngs([]);
-            updateSplitsTable();
-            updateStats();
-        }
-    }
-
-    isTracking = true;
-
-    // UI
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('pauseBtn').disabled = false;
-    document.getElementById('stopBtn').disabled = false;
-    document.getElementById('lapBtn').disabled = false;
-
-    // Cronómetro
-    updateTimer();
-    timerInterval = setInterval(updateTimer, 1000);
-
-    // Seguimiento GPS
-    watchId = navigator.geolocation.watchPosition(
-        updatePosition,
-        error => {
-            console.error('Error al seguir la ubicación:', error);
-            alert('Error al seguir tu ubicación. Por favor, verifica los permisos.');
-            pauseTracking();
-        },
-        {
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 5000
-        }
-    );
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
-// Pausar seguimiento
-function pauseTracking() {
-    if (isTracking && !isPaused) {
-        isPaused = true;
-        pauseTime = new Date();
-
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-        }
-
-        clearInterval(timerInterval);
-
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('startBtn').textContent = 'Reanudar';
-        document.getElementById('pauseBtn').disabled = true;
-    }
-}
-
-// Detener seguimiento
-function stopTracking() {
-    if (isTracking) {
-        isTracking = false;
-        isPaused = false;
-
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-        }
-
-        clearInterval(timerInterval);
-
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('startBtn').textContent = 'Iniciar';
-        document.getElementById('pauseBtn').disabled = true;
-        document.getElementById('stopBtn').disabled = true;
-        document.getElementById('lapBtn').disabled = true;
-
-        // Mostrar resumen
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-        document.querySelector('[data-tab="summary"]').classList.add('tab-active');
-        document.getElementById('summary-tab').classList.remove('hidden');
-    }
-}
-
-// Marcar parcial manual
-function markLap() {
-    if (!isTracking || isPaused) return;
-
-    const lapTime = new Date() - startTime;
-    const lapDistance = totalDistance;
-
-    const lastLapTime = laps.length > 0 ?
-        lapTime - laps[laps.length - 1].totalTime :
-        lapTime;
-
-    const lastLapDistance = laps.length > 0 ?
-        lapDistance - laps[laps.length - 1].totalDistance :
-        lapDistance;
-
-    let lapPace = 0;
-    let lapPaceString = "--'--\"";
-
-    if (lastLapDistance > 0) {
-        lapPace = (lastLapTime / 1000 / 60) / lastLapDistance;
-        const lapPaceMinutes = Math.floor(lapPace);
-        const lapPaceSeconds = Math.floor((lapPace - lapPaceMinutes) * 60);
-        lapPaceString = lapPaceMinutes + "'" + (lapPaceSeconds < 10 ? '0' : '') + lapPaceSeconds + '"';
-    }
-
-    laps.push({
-        number: laps.length + 1,
-        totalTime: lapTime,
-        lapTime: lastLapTime,
-        totalDistance: lapDistance,
-        lapDistance: lastLapDistance,
-        pace: lapPaceString,
-        elevation: Math.round(elevationGain)
-    });
-
-    updateLapsTable();
-}
-
-// Actualizar posición usuario
-function updatePosition(position) {
-    const { latitude, longitude } = position.coords;
-    const elevation = position.coords.altitude || 0;
-    const timestamp = new Date();
-
-    // Actualizar marcador
-    if (userMarker) {
-        userMarker.setLatLng([latitude, longitude]);
-    } else {
-        userMarker = L.marker([latitude, longitude], {
-            icon: L.divIcon({
-                className: 'user-marker',
-                html: `<div style="background-color: #FFD700; border: 2px solid #121212; border-radius: 50%; width: 16px; height: 16px;"></div>`,
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-            })
-        }).addTo(map);
-    }
-
-    trackPoints.push({
-        lat: latitude,
-        lng: longitude,
-        elevation: elevation,
-        time: timestamp
-    });
-
-    routePolyline.addLatLng([latitude, longitude]);
-
-    map.panTo([latitude, longitude]);
-
-    if (lastPosition) {
-        const segmentDistance = calculateDistance(
-            lastPosition.lat, lastPosition.lng,
-            latitude, longitude
-        );
-
-        if (segmentDistance < 0.1) {
-            totalDistance += segmentDistance;
-
-            if (elevation > lastPosition.elevation) {
-                elevationGain += (elevation - lastPosition.elevation);
-            }
-
-            updateStats();
-            checkSplits();
-        }
-    }
-
-    lastPosition = {
-        lat: latitude,
-        lng: longitude,
-        elevation: elevation,
-        time: timestamp
-    };
-}
-
-// Calcular distancia entre dos puntos (Haversine)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-}
-
-// Actualizar cronómetro
-function updateTimer() {
-    if (!startTime) return;
-
-    const now = new Date();
-    const elapsed = isPaused ? pauseTime - startTime : now - startTime;
-
-    const hours = Math.floor(elapsed / 3600000);
-    const minutes = Math.floor((elapsed % 3600000) / 60000);
-    const seconds = Math.floor((elapsed % 60000) / 1000);
-
-    const timeString =
-        (hours < 10 ? '0' + hours : hours) + ':' +
-        (minutes < 10 ? '0' + minutes : minutes) + ':' +
-        (seconds < 10 ? '0' + seconds : seconds);
-
-    document.getElementById('activity-duration').textContent = timeString;
-}
-
-// Actualizar estadísticas
+// Actualizar estadísticas en pantalla
 function updateStats() {
-    // Distancia
-    document.getElementById('activity-distance').textContent = totalDistance.toFixed(2) + ' km';
+  const now = Date.now();
+  const elapsedSec = Math.floor((now - startTime) / 1000);
+  timeEl.textContent = formatTime(elapsedSec);
+  distanceEl.textContent = (distance / 1000).toFixed(2);
 
-    // Ritmo
-    if (totalDistance > 0 && startTime) {
-        const elapsed = isPaused ?
-            (pauseTime - startTime) / 1000 :
-            (new Date() - startTime) / 1000; // segundos
+  // Ritmo = minutos por km = tiempo en minutos / distancia en km
+  let pace = distance > 0 ? elapsedSec / 60 / (distance / 1000) : 0;
+  paceEl.textContent = formatPace(pace);
 
-        const pace = elapsed / (totalDistance * 60); // min/km
-        const paceMinutes = Math.floor(pace);
-        const paceSeconds = Math.floor((pace - paceMinutes) * 60);
-
-        const paceString = paceMinutes + "'" + (paceSeconds < 10 ? '0' : '') + paceSeconds + '"';
-        document.getElementById('activity-pace').textContent = paceString;
-    } else {
-        document.getElementById('activity-pace').textContent = "--'--\"";
-    }
-
-    // Calorías (estimación)
-    const calories = Math.round(totalDistance * 65);
-    document.getElementById('activity-calories').textContent = calories + ' kcal';
-
-    // Desnivel
-    const elevationRounded = Math.round(elevationGain);
-    document.getElementById('activity-elevation').textContent = elevationRounded + ' m';
-
-    // Actualizar gráficos
-    if (trackPoints.length > 1) {
-        updateCharts();
-    }
+  elevationEl.textContent = elevationGain.toFixed(0);
 }
 
-// Comprobar splits (cada km)
+// Calcular desnivel positivo acumulado
+function calcElevationGain(newEle) {
+  if (elevationData.length === 0) {
+    elevationData.push(newEle);
+    return 0;
+  }
+  let lastEle = elevationData[elevationData.length - 1];
+  let gain = 0;
+  if (newEle > lastEle) gain = newEle - lastEle;
+  elevationData.push(newEle);
+  return gain;
+}
+
+// Parciales cada 1km
 function checkSplits() {
-    if (totalDistance >= (currentSplit + 1)) {
-        const splitTime = isPaused ?
-            pauseTime - startTime :
-            new Date() - startTime;
+  const km = Math.floor(distance / 1000);
+  if (km > 0 && splits[splits.length - 1] !== km) {
+    const now = Date.now();
+    const elapsedSec = (now - startTime) / 1000;
+    splits.push(km);
 
-        const splitPace = splitTime / ((currentSplit + 1) * 60000);
-        const splitPaceMinutes = Math.floor(splitPace);
-        const splitPaceSeconds = Math.floor((splitPace - splitPaceMinutes) * 60);
+    // Mostrar parcial
+    const li = document.createElement("li");
+    li.textContent = `Km ${km} - Tiempo: ${formatTime(elapsedSec)}`;
+    splitsEl.prepend(li);
 
-        splits.push({
-            km: currentSplit + 1,
-            time: formatTime(splitTime),
-            pace: splitPaceMinutes + "'" + (splitPaceSeconds < 10 ? '0' : '') + splitPaceSeconds + '"',
-            elevation: Math.round(elevationGain)
-        });
+    // Aviso visual
+    alert(`Parcial ${km} km: ${formatTime(elapsedSec)}`);
 
-        updateSplitsTable();
-        currentSplit++;
+    // Voz
+    if ("speechSynthesis" in window) {
+      const msg = new SpeechSynthesisUtterance(
+        `Kilómetro ${km}, tiempo ${formatTime(elapsedSec)}`
+      );
+      window.speechSynthesis.speak(msg);
     }
+  }
 }
 
-// Actualizar tabla splits
-function updateSplitsTable() {
-    const tbody = document.getElementById('splits-body');
-    tbody.innerHTML = '';
-
-    if (splits.length === 0 && laps.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="4">No hay parciales registrados</td>`;
-        tbody.appendChild(row);
-        return;
-    }
-
-    splits.forEach(split => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>Km ${split.km}</td>
-            <td>${split.time}</td>
-            <td>${split.pace}</td>
-            <td>${split.elevation} m</td>
-        `;
-        tbody.appendChild(row);
-    });
-
-    laps.forEach(lap => {
-        const row = document.createElement('tr');
-        row.classList.add('bg-yellow-900');
-        row.innerHTML = `
-            <td>Vuelta ${lap.number} (${lap.lapDistance.toFixed(2)} km)</td>
-            <td>${formatTime(lap.lapTime)}</td>
-            <td>${lap.pace}</td>
-            <td>${lap.elevation} m</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Los laps se muestran en la misma tabla que splits
-function updateLapsTable() {
-    updateSplitsTable();
-}
-
-// Formatear tiempo ms a HH:MM:SS
-function formatTime(ms) {
-    const hours = Math.floor(ms / 3600000);
-    const minutes = Math.floor((ms % 3600000) / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-
-    return (hours > 0 ? hours + ':' : '') +
-        (minutes < 10 ? '0' + minutes : minutes) + ':' +
-        (seconds < 10 ? '0' + seconds : seconds);
-}
-
-// Configurar gráficos Chart.js
-function setupCharts() {
-    const paceCtx = document.getElementById('paceChart').getContext('2d');
-    paceChart = new Chart(paceCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'Ritmo (min/km)',
-                data: [],
-                borderColor: '#FFD700',
-                backgroundColor: 'rgba(255, 215, 0, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
+// Inicializar gráfico de elevación con Chart.js
+let elevationChart;
+function initChart() {
+  const ctx = document.getElementById("elevationChart").getContext("2d");
+  elevationChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: "Elevación (m)",
+          data: [],
+          borderColor: "#ffd600",
+          backgroundColor: "rgba(255, 214, 0, 0.3)",
+          tension: 0.3,
+          fill: true,
+          pointRadius: 0,
+          borderWidth: 2,
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    reverse: true,
-                    ticks: { color: '#F5F5F5' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                },
-                x: {
-                    ticks: { color: '#F5F5F5' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                }
-            },
-            plugins: {
-                legend: { labels: { color: '#F5F5F5' } }
-            }
-        }
-    });
-
-    const elevationCtx = document.getElementById('elevationChart').getContext('2d');
-    elevationChart = new Chart(elevationCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'Elevación (m)',
-                data: [],
-                borderColor: '#FFD700',
-                backgroundColor: 'rgba(255, 215, 0, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
+      ],
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      scales: {
+        x: {
+          display: false,
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    ticks: { color: '#F5F5F5' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                },
-                x: {
-                    ticks: { color: '#F5F5F5' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                }
-            },
-            plugins: {
-                legend: { labels: { color: '#F5F5F5' } }
-            }
-        }
+        y: {
+          ticks: { color: "#ffd600" },
+          grid: { color: "#444" },
+        },
+      },
+      plugins: {
+        legend: {
+          labels: { color: "#ffd600" },
+        },
+      },
+    },
+  });
+}
+
+// Actualizar gráfico con elevación
+function updateChart() {
+  if (!elevationChart) return;
+  elevationChart.data.labels = pathCoords.map((_, i) => i);
+  elevationChart.data.datasets[0].data = elevationData;
+  elevationChart.update("none");
+}
+
+// Manejar nueva posición
+function onPositionUpdate(pos) {
+  const { latitude, longitude, altitude } = pos.coords;
+
+  // Actualizar marcador o crearlo
+  if (!userMarker) {
+    userMarker = L.marker([latitude, longitude], {
+      icon: L.icon({
+        iconUrl:
+          "https://cdn-icons-png.flaticon.com/512/64/64113.png",
+        iconSize: [25, 25],
+        iconAnchor: [12, 25],
+      }),
+    }).addTo(map);
+  } else {
+    userMarker.setLatLng([latitude, longitude]);
+  }
+
+  // Centrar mapa en la ubicación actual la primera vez
+  if (pathCoords.length === 0) {
+    map.setView([latitude, longitude], 15);
+  }
+
+  // Añadir nuevo punto
+  const newPoint = [latitude, longitude];
+  const newEle = altitude ?? 0;
+
+  // Calcular distancia acumulada
+  if (lastPosition) {
+    const d = haversine(
+      lastPosition[0],
+      lastPosition[1],
+      latitude,
+      longitude
+    );
+    if (d > 0.5) {
+      distance += d;
+      const gain = calcElevationGain(newEle);
+      elevationGain += gain;
+      pathCoords.push(newPoint);
+      if (polyline) polyline.setLatLngs(pathCoords);
+      else
+        polyline = L.polyline(pathCoords, {
+          color: "#ffd600",
+          weight: 5,
+          opacity: 0.8,
+          lineJoin: "round",
+        }).addTo(map);
+
+      updateStats();
+      updateChart();
+      checkSplits();
+    }
+  } else {
+    // Primer punto
+    pathCoords.push(newPoint);
+    elevationData.push(newEle);
+    polyline = L.polyline(pathCoords, {
+      color: "#ffd600",
+      weight: 5,
+      opacity: 0.8,
+      lineJoin: "round",
+    }).addTo(map);
+  }
+
+  lastPosition = newPoint;
+}
+
+// Manejar error de geolocalización
+function onPositionError(err) {
+  alert(
+    "Error al obtener ubicación: " + err.message + ". Por favor, activa GPS y permisos."
+  );
+}
+
+// Inicio y parada del tracking
+function toggleTracking() {
+  if (watchId === null) {
+    if (!navigator.geolocation) {
+      alert("Tu navegador no soporta Geolocalización.");
+      return;
+    }
+
+    startStopBtn.textContent = "Detener";
+    resetBtn.disabled = true;
+    startTime = Date.now();
+    distance = 0;
+    elevationGain = 0;
+    pathCoords = [];
+    elevationData = [];
+    splits = [];
+    lastPosition = null;
+    splitsEl.innerHTML = "";
+    updateStats();
+    updateChart();
+
+    watchId = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, {
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 10000,
     });
+
+    // Timer para actualizar tiempo cada segundo
+    timerInterval = setInterval(updateStats, 1000);
+  } else {
+    // Detener tracking
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    startStopBtn.textContent = "Iniciar";
+    resetBtn.disabled = false;
+    clearInterval(timerInterval);
+  }
 }
 
-// Actualizar gráficos
-function updateCharts() {
-    if (trackPoints.length < 2) return;
+function resetTracking() {
+  if (watchId !== null) {
+    alert("Para resetear primero detén el seguimiento.");
+    return;
+  }
+  // Limpiar datos
+  distance = 0;
+  elevationGain = 0;
+  pathCoords = [];
+  elevationData = [];
+  splits = [];
+  lastPosition = null;
+  splitsEl.innerHTML = "";
+  updateStats();
+  updateChart();
 
-    const labels = [];
-    const paceData = [];
-    const elevationData = [];
+  // Quitar marcador y polyline
+  if (userMarker) {
+    map.removeLayer(userMarker);
+    userMarker = null;
+  }
+  if (polyline) {
+    map.removeLayer(polyline);
+    polyline = null;
+  }
 
-    const step = Math.max(1, Math.floor(trackPoints.length / 20));
-
-    for (let i = 0; i < trackPoints.length; i += step) {
-        const point = trackPoints[i];
-
-        const distance = (i / trackPoints.length * totalDistance).toFixed(1);
-        labels.push(distance + ' km');
-
-        if (i > 0) {
-            const prevPoint = trackPoints[i - step];
-            const segmentDistance = calculateDistance(
-                prevPoint.lat, prevPoint.lng,
-                point.lat, point.lng
-            );
-
-            const segmentTime = (point.time - prevPoint.time) / 1000 / 60; // minutos
-
-            if (segmentDistance > 0) {
-                const pace = segmentTime / segmentDistance; // min/km
-                paceData.push(pace);
-            } else {
-                paceData.push(paceData.length > 0 ? paceData[paceData.length - 1] : 5);
-            }
-        } else {
-            paceData.push(5);
-        }
-
-        elevationData.push(point.elevation || 0);
-    }
-
-    paceChart.data.labels = labels;
-    paceChart.data.datasets[0].data = paceData;
-    paceChart.update();
-
-    elevationChart.data.labels = labels;
-    elevationChart.data.datasets[0].data = elevationData;
-    elevationChart.update();
+  resetBtn.disabled = true;
 }
 
-// Guardar actividad (simulado)
-function saveActivity() {
-    if (trackPoints.length > 0) {
-        alert('¡Actividad guardada con éxito!');
-    } else {
-        alert('No hay datos de actividad para guardar.');
-    }
-}
+// Event listeners botones
+startStopBtn.addEventListener("click", toggleTracking);
+resetBtn.addEventListener("click", resetTracking);
 
-// Actualizar fecha actividad
-function updateActivityDate() {
-    const now = new Date();
-    const day = now.getDate().toString().padStart(2, '0');
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const year = now.getFullYear();
-
-    document.getElementById('activity-date').textContent = `${day}/${month}/${year}`;
-}
-
-// Arranque
-window.onload = () => {
-    initMap();
-    initializeLocation();
-    setupEventListeners();
-    setupCharts();
-    updateActivityDate();
-};
+// Inicializar mapa y gráfico
+initMap();
+initChart();
+updateStats();
