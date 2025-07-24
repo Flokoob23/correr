@@ -2,52 +2,48 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FLOKOOB - tu cronómetro de bolsillo</title>
-
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-sA+4tpBMRVbFfCxWtY6CoF+oPyZbbk8phDFyYfD7LZU="
-    crossorigin=""
-  />
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FLOKOOB - Tu cronómetro de bolsillo</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header>
     <h1>FLOKOOB</h1>
-    <h2>tu cronómetro de bolsillo</h2>
+    <p class="subtitle">tu cronómetro de bolsillo</p>
   </header>
 
-  <div id="map"></div>
-
-  <section id="stats">
-    <div><strong>Tiempo:</strong> <span id="time">00:00:00</span></div>
-    <div><strong>Distancia:</strong> <span id="distance">0.00</span> km</div>
-    <div><strong>Ritmo:</strong> <span id="pace">0:00</span> min/km</div>
-    <div><strong>Desnivel:</strong> <span id="elevation">0</span> m</div>
-    <div><strong>Parciales:</strong>
-      <ul id="splits"></ul>
+  <main>
+    <div id="controls">
+      <button id="startBtn">Iniciar</button>
+      <button id="pauseBtn" disabled>Pausar</button>
+      <button id="resetBtn" disabled>Reiniciar</button>
+      <button id="layerBtn">Cambiar capa</button>
     </div>
-  </section>
 
-  <section id="chart-container">
-    <canvas id="elevationChart"></canvas>
-  </section>
+    <div id="mapContainer">
+      <div id="map"></div>
+    </div>
 
-  <button id="startStopBtn">Iniciar</button>
-  <button id="resetBtn" disabled>Resetear</button>
+    <section id="stats">
+      <h2>Estadísticas</h2>
+      <ul>
+        <li>Distancia: <span id="distance">0.00</span> km</li>
+        <li>Tiempo: <span id="time">00:00:00</span></li>
+        <li>Ritmo: <span id="pace">0:00</span> min/km</li>
+        <li>Desnivel: <span id="elevation">0</span> m</li>
+      </ul>
+    </section>
 
-  <!-- Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o8EjibT6K12XXKKx3RQ2OR0kX9F2FLeNk9woKl1ZjvE="
-    crossorigin=""
-  ></script>
+    <section id="chartSection">
+      <h2>Gráfico de Ritmo</h2>
+      <canvas id="paceChart"></canvas>
+    </section>
+  </main>
+
   <script src="app.js"></script>
 </body>
 </html>
+
