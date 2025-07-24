@@ -2,40 +2,42 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>FLOKOOB - tu cronómetro de bolsillo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+  <title>FLOKOOB</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>FLOKOOB</h1>
-      <h2>Tu cronómetro de bolsillo</h2>
+  <div class="app-shell">
+    <header class="header">
+      <div class="brand"><span class="brand-main">FLOKOOB</span><span class="brand-dot">•</span></div>
+      <div class="subtitle">Cronómetro de bolsillo</div>
     </header>
-    <nav id="mainNav">
-      <button id="navRun" class="nav-btn active">Entrenar</button>
-      <button id="navHistory" class="nav-btn">Historial</button>
-      <button id="navAchievements" class="nav-btn">Logros</button>
-      <button id="navSettings" class="nav-btn">Ajustes</button>
+    <nav class="nav">
+      <button id="navRun" class="nav-btn active" title="Entrenar"><i class="icon icon-run"></i></button>
+      <button id="navHistory" class="nav-btn" title="Historial"><i class="icon icon-history"></i></button>
+      <button id="navAchievements" class="nav-btn" title="Logros"><i class="icon icon-trophy"></i></button>
+      <button id="navSettings" class="nav-btn" title="Ajustes"><i class="icon icon-settings"></i></button>
     </nav>
-    <main id="mainContent">
-      <section id="runSection">
-        <section id="controls">
-          <button id="startBtn" class="main-btn">▶ Empezar</button>
-          <button id="pauseBtn" class="main-btn" disabled>⏸ Pausa</button>
-          <button id="lapBtn" class="main-btn" disabled>🏁 Parcial</button>
-          <button id="resetBtn" class="main-btn" disabled>⟲ Reset</button>
+    <main id="mainContent" class="main-content">
+      <section id="runSection" class="screen active">
+        <section class="toolbar">
+          <button id="startBtn" class="btn btn-primary">▶ Empezar</button>
+          <button id="pauseBtn" class="btn btn-secondary" disabled>⏸ Pausa</button>
+          <button id="lapBtn" class="btn btn-secondary" disabled>🏁 Parcial</button>
+          <button id="resetBtn" class="btn btn-danger" disabled>⟲ Reset</button>
         </section>
-        <section id="controls2">
-          <button id="voiceBtn" class="main-btn">🔊 Voz</button>
-          <button id="routeDrawBtn" class="main-btn">✏️ Ruta Manual</button>
-          <button id="routeAutoBtn" class="main-btn">🗺️ Ruta Automática</button>
-          <button id="locateBtn" class="main-btn">📍 Mi ubicación</button>
+        <section class="toolbar toolbar-2">
+          <button id="voiceBtn" class="btn btn-tertiary">🔊 Voz</button>
+          <button id="routeDrawBtn" class="btn btn-tertiary">✏️ Ruta Manual</button>
+          <button id="routeAutoBtn" class="btn btn-tertiary">🗺️ Ruta Automática</button>
+          <button id="locateBtn" class="btn btn-tertiary">📍 Ubicación</button>
+          <button id="clearRouteBtn" class="btn btn-tertiary danger" title="Cancelar recorrido" style="display:none;">🗑 Cancelar</button>
         </section>
-        <section id="mapWrapper">
+        <section id="mapWrapper" class="map-section">
           <div id="map"></div>
           <div id="floatingRouteInfo" class="floating-route-info" style="display:none;"></div>
+          <div id="routePointsPanel" class="route-points-panel"></div>
         </section>
         <section id="routeInputs" style="display:none;">
           <div class="route-form">
@@ -43,11 +45,11 @@
             <input type="text" id="startPoint" placeholder="Ej: Obelisco, Buenos Aires">
             <label for="endPoint">Llegada:</label>
             <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
-            <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
-            <button id="useCurrentLocationBtn" class="main-btn">Usar mi ubicación</button>
+            <button id="findRouteBtn" class="btn btn-primary">Buscar Ruta</button>
+            <button id="useCurrentLocationBtn" class="btn btn-secondary">Usar mi ubicación</button>
           </div>
         </section>
-        <section id="stats">
+        <section id="stats" class="stats-section">
           <div class="stat big"><span id="time">00:00:00</span><small>Tiempo</small></div>
           <div class="stat big"><span id="distance">0.00</span><small>km</small></div>
           <div class="stat"><span id="pace">--:--</span><small>min/km</small></div>
@@ -57,7 +59,13 @@
         <section id="nextTurn" style="display:none;">
           <strong id="turnText"></strong>
         </section>
-        <section id="charts">
+        <section class="progress-route" id="liveRouteProgress" style="display:none;">
+          <div><span id="liveRouteKm"></span> km restantes (<span id="liveRoutePercent"></span>%)</div>
+          <div class="progress-bar">
+            <div id="liveRouteBar" class="progress-bar-inner"></div>
+          </div>
+        </section>
+        <section id="charts" class="charts-section">
           <div class="chart-block">
             <h3>Ritmo (min/km)</h3>
             <canvas id="paceChart" height="60"></canvas>
@@ -72,16 +80,13 @@
           <ul id="lapsList"></ul>
         </section>
         <section id="shareSection">
-          <button id="shareBtn" class="main-btn">📤 Compartir</button>
-          <button id="exportBtn" class="main-btn">⬇ GPX</button>
-        </section>
-        <section id="routeAnalysis" style="display:none;">
-          <div id="routeAnalysisContent"></div>
+          <button id="shareBtn" class="btn btn-primary">📤 Compartir</button>
+          <button id="exportBtn" class="btn btn-secondary">⬇ GPX</button>
         </section>
       </section>
-      <section id="historySection" style="display:none;"></section>
-      <section id="achievementsSection" style="display:none;"></section>
-      <section id="settingsSection" style="display:none;">
+      <section id="historySection" class="screen"></section>
+      <section id="achievementsSection" class="screen"></section>
+      <section id="settingsSection" class="screen">
         <div class="settings-form">
           <label>
             <input type="checkbox" id="darkModeToggle">
@@ -104,7 +109,7 @@
     <div id="modalOverlay" class="modal-overlay" style="display:none;">
       <div id="modalBox" class="modal-box">
         <span id="modalText"></span>
-        <button onclick="document.getElementById('modalOverlay').style.display='none';" class="main-btn modal-btn">Cerrar</button>
+        <button onclick="document.getElementById('modalOverlay').style.display='none';" class="btn btn-primary modal-btn">Cerrar</button>
       </div>
     </div>
     <div id="quickModal" class="quick-modal" style="display:none;">
