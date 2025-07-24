@@ -20,17 +20,16 @@
       <button id="navSettings" class="nav-btn">Ajustes</button>
     </nav>
     <main id="mainContent">
-      <!-- Entrenamiento -->
       <section id="runSection">
         <section id="controls">
-          <button id="startBtn" class="main-btn">Iniciar</button>
-          <button id="pauseBtn" class="main-btn" disabled>Pausa</button>
-          <button id="lapBtn" class="main-btn" disabled>Parcial</button>
-          <button id="resetBtn" class="main-btn" disabled>Reset</button>
+          <button id="startBtn" class="main-btn">▶ Iniciar</button>
+          <button id="pauseBtn" class="main-btn" disabled>⏸ Pausa</button>
+          <button id="lapBtn" class="main-btn" disabled>🏁 Parcial</button>
+          <button id="resetBtn" class="main-btn" disabled>⟲ Reset</button>
           <button id="voiceBtn" class="main-btn">🔊 Voz</button>
-          <button id="routeDrawBtn" class="main-btn">Dibujar Recorrido</button>
-          <button id="routeAutoBtn" class="main-btn">Ruta Automática</button>
-          <button id="locateBtn" class="main-btn">Mi ubicación</button>
+          <button id="routeDrawBtn" class="main-btn">✏ Dibujar Recorrido</button>
+          <button id="routeAutoBtn" class="main-btn">🗺 Ruta Automática</button>
+          <button id="locateBtn" class="main-btn">📍 Mi ubicación</button>
         </section>
         <section id="map"></section>
         <section id="routeInputs" style="display:none;">
@@ -41,6 +40,7 @@
             <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
             <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
             <button id="analyzeRouteBtn" class="main-btn">Analizar Recorrido</button>
+            <button id="useCurrentLocationBtn" class="main-btn">Usar mi ubicación actual</button>
           </div>
         </section>
         <section id="stats">
@@ -73,18 +73,15 @@
           <ul id="lapsList"></ul>
         </section>
         <section id="shareSection">
-          <button id="shareBtn" class="main-btn">Compartir Actividad</button>
-          <button id="exportBtn" class="main-btn">Exportar GPX</button>
+          <button id="shareBtn" class="main-btn">📤 Compartir Actividad</button>
+          <button id="exportBtn" class="main-btn">⬇ Exportar GPX</button>
         </section>
         <section id="routeAnalysis" style="display:none;">
           <div id="routeAnalysisContent"></div>
         </section>
       </section>
-      <!-- Historial -->
       <section id="historySection" style="display:none;"></section>
-      <!-- Logros -->
       <section id="achievementsSection" style="display:none;"></section>
-      <!-- Ajustes -->
       <section id="settingsSection" style="display:none;">
         <div class="settings-form">
           <label>
@@ -105,6 +102,16 @@
         </div>
       </section>
     </main>
+    <!-- MODALS -->
+    <div id="modalOverlay" class="modal-overlay" style="display:none;">
+      <div id="modalBox" class="modal-box">
+        <span id="modalText"></span>
+        <button onclick="document.getElementById('modalOverlay').style.display='none';" class="main-btn modal-btn">Cerrar</button>
+      </div>
+    </div>
+    <div id="quickModal" class="quick-modal" style="display:none;">
+      <span id="quickModalText"></span>
+    </div>
     <footer>
       <small>© FLOKOOB 2025</small>
     </footer>
