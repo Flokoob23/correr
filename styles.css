@@ -56,11 +56,53 @@ html, body {
 .screen { display: none; }
 .screen.active { display: block; }
 .top-tools { display: flex; align-items: center; justify-content: space-between; gap: 7px; padding: 10px 8px 2px 8px; background: var(--main-bg); }
-.search-form { flex:1; display: flex; align-items: center; gap: 3px;}
+.search-form { flex:1; display: flex; align-items: center; gap: 3px; position: relative; }
 #searchInput { width: 100%; padding: 6px 10px; border-radius: 10px; border: 1px solid #232a2f; background: #22262a; color: var(--text); font-size: 1rem; }
 .btn-search { min-width: 42px; font-size: 1.0rem; border-radius: 10px; padding: 7px 10px;}
 .btn-mapview { min-width: 42px; font-size: 1.3rem; border-radius: 10px; padding: 7px 10px; background: #232833; color: var(--accent-dark);}
 .btn-mapview:active { background: var(--btn-active);}
+.search-dropdown {
+  background: #23272e;
+  border-radius: 0 0 11px 11px;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  min-width: 98%;
+  max-width: 450px;
+  box-shadow: 0 3px 18px #0007;
+  top: 100%;
+  left: 0;
+  margin-top: -2px;
+  font-size: 1.01rem;
+  max-height: 265px;
+  overflow-y: auto;
+  position: absolute;
+  z-index: 1001;
+  padding: 0;
+  display: none;
+}
+.search-dropdown-item {
+  padding: 9px 14px 7px 14px;
+  cursor: pointer;
+  background: none;
+  border-bottom: 1px solid #232c33;
+  transition: background 0.13s, color 0.13s;
+  display: flex;
+  flex-direction: column;
+}
+.search-dropdown-item:last-child { border-bottom: none; }
+.search-dropdown-item:hover, .search-dropdown-item:focus {
+  background: var(--accent);
+  color: #151b13;
+}
+.search-main {
+  font-weight: 700;
+}
+.search-addr {
+  font-size: 0.93em;
+  color: var(--muted);
+  margin-left: 2px;
+  margin-top: 0px;
+}
 .toolbar, .toolbar-2 { display: flex; flex-wrap: wrap; justify-content: space-evenly; gap: 8px 6px; padding: 13px 0 5px 0; background: var(--main-bg); border-bottom: 1px solid #23252c;}
 .btn { border: none; border-radius: 16px; padding: 9px 16px; font-size: 1.08rem; font-weight: 700; cursor: pointer; min-width: 92px; margin: 3px 2px 3px 0; box-shadow: 0 1px 6px #50e3a618; transition: background 0.15s, color 0.14s, box-shadow 0.15s, transform 0.10s; letter-spacing: 1px; }
 .btn-primary { background: linear-gradient(90deg, var(--accent) 60%, var(--accent-dark) 100%); color: #121b13; }
