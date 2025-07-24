@@ -1,7 +1,6 @@
-// FLOKOOB - Diseño ÚNICO con modales, satélite, rutas y ubicación real exacta
+// FLOKOOB - Móvil, profesional, UI mejorada, estadísticas reales y rutas claras
 
-let map, userMarker, accuracyCircle, pathPolyline;
-let chartPace, chartElev, chartSpeed;
+let map, userMarker, accuracyCircle, pathPolyline, chartPace, chartElev;
 let routePolyline, routeMarkers = [];
 let routingControl = null;
 let routeMode = false, autoRouteMode = false;
@@ -24,25 +23,19 @@ const state = {
   lastVoiceKm: 0,
   route: [],
   autoRoute: [],
-  hrm: [],
-  shareLive: false,
-  emergencyContact: "",
-  darkMode: true
 };
 
-// ========== MODAL FUNCTIONS ==========
 function showModal(text) {
-  document.getElementById('modalText').innerText = text;
+  document.getElementById('modalText').innerHTML = text;
   document.getElementById('modalOverlay').style.display = 'flex';
 }
-function showQuickModal(text, ms=3400) {
+function showQuickModal(text, ms=2000) {
   const qm = document.getElementById('quickModal');
   document.getElementById('quickModalText').innerText = text;
   qm.style.display = 'block';
   setTimeout(()=>{ qm.style.display = 'none'; }, ms);
 }
 
-// ========== UTILIDADES ==========
 function formatTime(sec) {
   const h = Math.floor(sec/3600);
   const m = Math.floor((sec%3600)/60);
@@ -59,7 +52,7 @@ function calcDistance(pos1, pos2) {
   return R * c;
 }
 function calcPace(distKm, sec) {
-  if (distKm === 0) return '0:00';
+  if (distKm <= 0.01 || sec < 10) return "--:--";
   const pace = sec / distKm;
   const min = Math.floor(pace/60);
   const secd = Math.round(pace%60);
@@ -89,17 +82,15 @@ function speak(text) {
   window.speechSynthesis.speak(msg);
 }
 
-// ========== UI ==========
 function updateStats() {
   const dist = state.distances.length > 0 ? state.distances[state.distances.length-1] : 0;
   const distKm = dist / 1000;
   const speed = state.speeds.length > 0 ? state.speeds[state.speeds.length-1] : 0;
   document.getElementById('distance').textContent = distKm.toFixed(2);
   document.getElementById('time').textContent = formatTime(state.elapsed);
-  document.getElementById('pace').textContent = (distKm>0 ? calcPace(distKm, state.elapsed) : '0:00');
+  document.getElementById('pace').textContent = (distKm>0.01 ? calcPace(distKm, state.elapsed) : "--:--");
   document.getElementById('speed').textContent = speed.toFixed(1);
   document.getElementById('elev').textContent = `${Math.round(state.elevGain)}↑ ${Math.round(state.elevLoss)}↓`;
-  document.getElementById('current-elev').textContent = state.lastElev ? Math.round(state.lastElev) : '0';
 }
 function updateLaps() {
   const ul = document.getElementById('lapsList');
@@ -113,17 +104,20 @@ function updateLaps() {
   }
 }
 function updateCharts() {
-  if (!chartPace || !chartElev || !chartSpeed) return;
+  if (!chartPace || !chartElev) return;
   const labels = state.times.map(t=>formatTime(t));
   const paces = state.distances.map((d,i)=>{
     const distKm = d/1000;
-    return distKm>0 ? state.times[i]/distKm : 0;
+    if (distKm<=0.01 || state.times[i]<10) return null;
+    return state.times[i]/distKm;
   });
   const elevs = state.elevations.map(e=>e?e:0);
-  const speeds = state.speeds.map(v=>v);
-  chartPace.data.labels = labels; chartPace.data.datasets[0].data = paces; chartPace.update('none');
-  chartElev.data.labels = labels; chartElev.data.datasets[0].data = elevs; chartElev.update('none');
-  chartSpeed.data.labels = labels; chartSpeed.data.datasets[0].data = speeds; chartSpeed.update('none');
+  chartPace.data.labels = labels;
+  chartPace.data.datasets[0].data = paces;
+  chartPace.update('none');
+  chartElev.data.labels = labels;
+  chartElev.data.datasets[0].data = elevs;
+  chartElev.update('none');
 }
 function updateNextTurn(text, show) {
   const section = document.getElementById('nextTurn');
@@ -141,13 +135,15 @@ function setActiveNav(navId) {
   document.getElementById(navId).classList.add('active');
 }
 
-// ========== MAPA ==========
+// ========== MAPA Y UBICACIÓN ==========
 function initMap() {
   map = L.map('map', {
     zoomControl: true,
     attributionControl:false,
     center: [-34.6037, -58.3816],
-    zoom: 16
+    zoom: 16,
+    dragging: true,
+    tap: false
   });
   // Satélite por defecto
   const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
@@ -164,7 +160,6 @@ function initMap() {
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
 
-// ========== UBICACIÓN EN TIEMPO REAL Y PERMISOS ==========
 function askLocationPermissionAndTrack() {
   if (!navigator.geolocation) {
     showModal("Tu navegador no soporta geolocalización.");
@@ -175,12 +170,10 @@ function askLocationPermissionAndTrack() {
     map.setView(realCoords, 17, {animate:true});
     updateUserMarker(realCoords, pos.coords.accuracy||20);
     showQuickModal("Ubicación exacta detectada.");
-    // Watch position
     if (watchId) navigator.geolocation.clearWatch(watchId);
     watchId = navigator.geolocation.watchPosition(function(p){
       realCoords = {lat: p.coords.latitude, lng: p.coords.longitude};
       updateUserMarker(realCoords, p.coords.accuracy||20);
-      map.setView(realCoords, 17, {animate:true});
     }, function(e){
       showModal("No se pudo obtener tu ubicación. Verifica permisos y GPS.");
     }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
@@ -188,16 +181,25 @@ function askLocationPermissionAndTrack() {
     showModal("Para usar FLOKOOB concede permisos de ubicación.");
   }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
 }
-
 document.getElementById("locateBtn").onclick = askLocationPermissionAndTrack;
 
+function updateUserMarker(coord, accuracy=20) {
+  if (userMarker) {
+    userMarker.setLatLng(coord);
+    if (accuracyCircle) accuracyCircle.setLatLng(coord).setRadius(accuracy);
+  } else {
+    userMarker = L.marker(coord, {
+      icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
+    }).addTo(map);
+    accuracyCircle = L.circle(coord, {color: "#ffd600aa",fillColor: "#ffd60033",fillOpacity: 0.5,radius: accuracy}).addTo(map);
+  }
+}
+
 // ========== RUTAS MANUAL/AUTOMÁTICAS ==========
-// --- DIBUJAR RECORRIDO MANUAL ---
 function enableRouteDrawMode() {
   routeMode = true;
   document.getElementById('routeDrawBtn').disabled = true;
-  speak('Modo dibujo activado. Haz clic en el mapa para marcar tu recorrido.');
-  showQuickModal('Haz clic en el mapa para marcar tu recorrido.');
+  showQuickModal('Haz clic en el mapa para marcar el recorrido.');
   map.on('click', addRoutePoint);
 }
 function disableRouteDrawMode() {
@@ -209,19 +211,17 @@ function addRoutePoint(e) {
   const latlng = e.latlng;
   state.route.push({lat: latlng.lat, lng: latlng.lng});
   drawRoute();
-  // Si hay al menos dos puntos, mostrar distancia y calles
   if (state.route.length > 1) {
     let dist = 0;
     for(let i=1;i<state.route.length;i++)
       dist += calcDistance(state.route[i-1],state.route[i]);
-    // Calle por la que ir (usando Nominatim reverse)
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
+    let last = state.route[state.route.length-1];
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${last.lat}&lon=${last.lng}`)
       .then(r=>r.json())
       .then(data=>{
-        showModal(
-          `Distancia actual: ${(dist/1000).toFixed(2)} km<br>` +
-          `Última calle: ${data.address.road || data.display_name || "desconocida"}`
-        );
+        document.getElementById("floatingRouteInfo").innerHTML =
+          `<span>Distancia: ${(dist/1000).toFixed(2)} km<br><span style="font-size:0.98em;">Última calle: ${data.address.road || data.display_name || "?"}</span></span>`;
+        document.getElementById("floatingRouteInfo").style.display = "block";
       });
   }
 }
@@ -243,13 +243,11 @@ function drawRoute() {
   });
 }
 
-// --- RECORRIDO AUTOMÁTICO ---
 function enableRouteAutoMode() {
   autoRouteMode = true;
   document.getElementById('routeAutoBtn').disabled = true;
   document.getElementById('routeInputs').style.display = 'block';
-  speak('Ingresa la largada y la llegada para buscar una ruta.');
-  showQuickModal('Indica largada y llegada (o usa tu ubicación actual)');
+  showQuickModal('Indica largada y llegada (o usa tu ubicación)');
 }
 function disableRouteAutoMode() {
   autoRouteMode = false;
@@ -280,11 +278,10 @@ document.getElementById('findRouteBtn').onclick = function() {
     });
   });
 };
-// Usar mi ubicación actual como largada
 document.getElementById('useCurrentLocationBtn').onclick = function() {
   if(!realCoords) {
     askLocationPermissionAndTrack();
-    showQuickModal("Ubicación no detectada aún. Activa GPS y permisos.");
+    showQuickModal("Ubicación no detectada aún.");
     return;
   }
   document.getElementById('startPoint').value = `${realCoords.lat},${realCoords.lng}`;
@@ -307,14 +304,11 @@ function getRouteWithRoutingMachine(startPt, endPt) {
     state.autoRoute = coordinates;
     drawAutoRoute();
     disableRouteAutoMode();
-    speak('Ruta encontrada y marcada en el mapa. Ya puedes iniciar tu entrenamiento.');
-
-    // Modal con distancia y tiempo aprox
-    const dist = route.summary.totalDistance/1000;
-    const timeMin = route.summary.totalTime/60;
+    let dist = route.summary.totalDistance/1000;
+    let timeMin = route.summary.totalTime/60;
+    let calleTexto = route.instructions.map(i=>i.text.replace(/(en )?la carretera|(en )?la carretera/g,'').replace(/Continúe/g,'Seguí')).join("<br>");
     showModal(
-      `Distancia: ${dist.toFixed(2)} km.<br>Tiempo estimado corriendo: ${Math.round(timeMin)} min.<br>Calles:<br>` +
-      route.instructions.map(i=>i.text).join("<br>")
+      `<b>Distancia:</b> ${dist.toFixed(2)} km<br><b>Tiempo estimado:</b> ${Math.round(timeMin)} min<br><b>Calle/indicaciones:</b><br>${calleTexto}`
     );
   });
   routingControl.on('routingerror', function(){ showQuickModal('No se pudo calcular la ruta.'); disableRouteAutoMode(); });
@@ -330,80 +324,15 @@ function drawAutoRoute() {
   }
 }
 
-// --- Analizar recorrido automático ---
-document.getElementById('analyzeRouteBtn').onclick = function() {
-  if(state.autoRoute.length<2) {
-    showQuickModal("Primero busca una ruta automática.");
-    return;
-  }
-  analyzeAutoRoute();
-};
-function analyzeAutoRoute() {
-  if(state.autoRoute.length<2) return;
-  let totalDist = 0, elevs = [], maxElev = -Infinity, minElev = Infinity;
-  let promSlope = 0, maxSlope = 0, slopeCount = 0;
-  let difficult = "Fácil";
-  let elevPromises = [];
-  for(let i=0; i<state.autoRoute.length-1; i++) {
-    totalDist += calcDistance(state.autoRoute[i], state.autoRoute[i+1]);
-    elevPromises.push(getElevation(state.autoRoute[i].lat, state.autoRoute[i].lng));
-  }
-  Promise.all(elevPromises).then(elevData=>{
-    elevs = elevData.filter(e=>e!=null);
-    maxElev = Math.max(...elevs);
-    minElev = Math.min(...elevs);
-    let elevPoints = [];
-    for(let i=1;i<elevs.length;i++){
-      let slope = Math.abs(elevs[i]-elevs[i-1]);
-      promSlope += slope;
-      maxSlope = Math.max(maxSlope, slope);
-      if(slope>7) slopeCount++;
-      elevPoints.push(elevs[i]);
-    }
-    promSlope = promSlope/(elevs.length-1);
-    if(maxSlope>25 || slopeCount>3) difficult = "Muy difícil";
-    else if(maxSlope>15 || slopeCount>1) difficult = "Difícil";
-    else if(maxSlope>7) difficult = "Moderada";
-    else difficult = "Fácil";
-    // Mostrar resumen en UI
-    let html = `
-      <div><b>Distancia:</b> ${(totalDist/1000).toFixed(2)} km</div>
-      <div><b>Altitud máxima:</b> ${maxElev} m</div>
-      <div><b>Altitud mínima:</b> ${minElev} m</div>
-      <div><b>Desnivel promedio:</b> ${promSlope.toFixed(1)} m</div>
-      <div><b>Desnivel máximo:</b> ${maxSlope.toFixed(1)} m</div>
-      <div><b>Dificultad:</b> ${difficult}</div>
-      <div><canvas id="routeElevChart" height="60"></canvas></div>
-    `;
-    document.getElementById("routeAnalysisContent").innerHTML = html;
-    document.getElementById("routeAnalysis").style.display = "block";
-    setTimeout(()=>{
-      new Chart(document.getElementById('routeElevChart').getContext('2d'), {
-        type: 'line',
-        data: {
-          labels: Array.from({length: elevPoints.length}, (_,i)=>`Pt${i+1}`),
-          datasets: [{
-            label: 'Elevación (m)',
-            data: elevPoints,
-            borderColor: '#bba500',
-            backgroundColor: 'rgba(255,214,0,0.10)',
-            tension: 0.3,
-            fill: true,
-            pointRadius: 0
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {legend: {display:false}},
-          scales: {x: {display:false},y: {beginAtZero: false,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}
-        }
-      });
-    },350);
-  });
-}
-
 // ========== TURN DETECTION Y GPS ==========
-function getTurnInstruction(from, to) { if (!from || !to) return ""; const dx = to.lng - from.lng; const dy = to.lat - from.lat; const angle = Math.atan2(dy, dx) * 180 / Math.PI; if (angle > 30) return "Dobla a la izquierda"; if (angle < -30) return "Dobla a la derecha"; return "Sigue recto"; }
+function getTurnInstruction(from, to) {
+  if (!from || !to) return "";
+  const dx = to.lng - from.lng; const dy = to.lat - from.lat;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angle > 30) return "Dobla a la izquierda";
+  if (angle < -30) return "Dobla a la derecha";
+  return "Seguí recto";
+}
 function checkUpcomingTurn(currentPos) {
   let routeArr = state.autoRoute.length>0 ? state.autoRoute : state.route;
   if (!routeArr || routeArr.length < 2 || nextTurnIndex >= routeArr.length-1) { updateNextTurn("", false); return; }
@@ -412,9 +341,13 @@ function checkUpcomingTurn(currentPos) {
   if (distToTurn < 60 && distToTurn > 30) {
     const from = routeArr[nextTurnIndex];
     const to = routeArr[nextTurnIndex+1];
-    const instruction = getTurnInstruction(from, to);
-    updateNextTurn(`${instruction} en ${Math.round(distToTurn)} metros`,true);
-    if(voiceOn) speak(`${instruction} en ${Math.round(distToTurn)} metros`);
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${to.lat}&lon=${to.lng}`)
+    .then(r=>r.json())
+    .then(data=>{
+      const calle = data.address.road || data.display_name || "calle";
+      const instruction = getTurnInstruction(from, to);
+      updateNextTurn(`${instruction} en ${calle} (${Math.round(distToTurn)} m)`,true);
+    });
   } else if (distToTurn <= 30) {
     nextTurnIndex++;
     updateNextTurn("", false);
@@ -437,11 +370,9 @@ async function onLocation(pos) {
     const dist = calcDistance(lastPos, coord);
     const timeDelta = (Math.round((now-state.startTime)/1000)) - lastTime;
     const vel = dist / (timeDelta > 0 ? timeDelta : 1);
-    if (dist > 30 && vel > 6) {
-      addPoint = false;
-    }
+    // Filtro: solo si movió más de 3 metros y velocidad < 7 m/s (25 km/h)
+    if (dist < 3 || vel > 7) addPoint = false;
   }
-
   if (addPoint) {
     let delta = 0, tdelta = 1, spd = 0;
     if (state.positions.length > 0) {
@@ -482,17 +413,6 @@ async function onLocation(pos) {
       kmVoiceNext++;
       state.lastVoiceKm = kmVoiceNext-1;
     }
-  }
-}
-function updateUserMarker(coord, accuracy=20) {
-  if (userMarker) {
-    userMarker.setLatLng(coord);
-    if (accuracyCircle) accuracyCircle.setLatLng(coord).setRadius(accuracy);
-  } else {
-    userMarker = L.marker(coord, {
-      icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
-    }).addTo(map);
-    accuracyCircle = L.circle(coord, {color: "#ffd600aa",fillColor: "#ffd60033",fillOpacity: 0.5,radius: accuracy}).addTo(map);
   }
 }
 function startTimer() {
@@ -588,9 +508,9 @@ document.getElementById('exportBtn').onclick = function() {
 
 // ========== NAVEGACIÓN ==========
 document.getElementById('navRun').onclick = function() {showSection("runSection");setActiveNav("navRun");};
-document.getElementById('navHistory').onclick = function() {/*implementa si quieres*/ showSection("historySection");setActiveNav("navHistory");};
-document.getElementById('navAchievements').onclick = function() {/*implementa si quieres*/ showSection("achievementsSection");setActiveNav("navAchievements");};
-document.getElementById('navSettings').onclick = function() {/*implementa si quieres*/ showSection("settingsSection");setActiveNav("navSettings");};
+document.getElementById('navHistory').onclick = function() { showQuickModal("Historial próximamente."); showSection("historySection");setActiveNav("navHistory");};
+document.getElementById('navAchievements').onclick = function() { showQuickModal("Logros próximamente."); showSection("achievementsSection");setActiveNav("navAchievements");};
+document.getElementById('navSettings').onclick = function() { showQuickModal("Ajustes próximamente."); showSection("settingsSection");setActiveNav("navSettings");};
 
 function handleError(err) { showModal("No se pudo obtener tu ubicación.\nActiva el GPS y otorga permisos.\n\n"+err.message); }
 
@@ -599,7 +519,6 @@ window.onload = function() {
   setTimeout(()=>map.invalidateSize(),200);
   chartPace = new Chart(document.getElementById('paceChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Min/Km',data: [],borderColor: '#ffd600',backgroundColor: 'rgba(255,214,0,0.10)',tension: 0.35,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}}});
   chartElev = new Chart(document.getElementById('elevChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Elevación',data: [],borderColor: '#bba500',backgroundColor: 'rgba(255,214,0,0.08)',tension: 0.3,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: false,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}}});
-  chartSpeed = new Chart(document.getElementById('speedChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Velocidad',data: [],borderColor: '#ffd600',backgroundColor: 'rgba(255,214,0,0.09)',tension: 0.32,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}}});
   updateStats(); updateLaps(); updateCharts();
   showSection("runSection"); setActiveNav("navRun");
   askLocationPermissionAndTrack();
