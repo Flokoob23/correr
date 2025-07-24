@@ -1,9 +1,9 @@
-v// FLOKOOB Running Pro Tracker - Código completo
+// FLOKOOB Running Pro Tracker - Código completo
 // Reemplaza "TU_API_KEY_OPENWEATHERMAP" por tu propia API key de OpenWeatherMap si quieres clima real.
 const OWM_API_KEY = "TU_API_KEY_OPENWEATHERMAP";
 
 // ------ ESTADO ------
-let map, userMarker, accuracyCircle, pathPolyline, chartPace, chartElev;
+let map, userMarker, accuracyCircle, pathPolyline;
 let routePolyline, routeMarkers = [];
 let routingControl = null, manualRouting = null;
 let routeMode = false, autoRouteMode = false;
@@ -12,7 +12,6 @@ let watchId = null, started = false, paused = false, timerInterval = null, voice
 let kmVoiceNext = 1;
 let realCoords = null;
 const STORAGE_KEY = "flokoob_activities_v1";
-const LOGRO_KEY = "flokoob_achievements_v1";
 const state = {
   positions: [], times: [], distances: [], elevations: [], speeds: [],
   laps: [], startTime: null, elapsed: 0, elevGain: 0, elevLoss: 0,
@@ -100,7 +99,6 @@ searchInput.oninput = function(e) {
             </div>
           `).join('');
           searchDropdown.style.display = 'block';
-          // Añadir eventos
           Array.from(searchDropdown.children).forEach(item => {
             item.onclick = function() {
               const lat = parseFloat(item.getAttribute('data-lat'));
@@ -140,6 +138,7 @@ searchForm.onsubmit = function(e) {
   searchDropdown.style.display = 'none';
   return false;
 };
+
 // ------ AGRANDAR/REDUCIR MAPA ------
 let mapExpanded = false;
 document.getElementById('expandMapBtn').onclick = function() {
@@ -219,9 +218,7 @@ function updateLaps() {
     });
   }
 }
-function updateCharts() {
-  // Si necesitas gráficos de ritmo y elevación, aquí podrías integrar Chart.js.
-}
+function updateCharts() {}
 function updateNextTurn(text, show) {
   const section = document.getElementById('nextTurn');
   const turnText = document.getElementById('turnText');
@@ -283,6 +280,7 @@ function updateUserMarker(coord, accuracy=20) {
     accuracyCircle = L.circle(coord, {color: "#50e3a499",fillColor: "#50e3a455",fillOpacity: 0.4,radius: accuracy}).addTo(map);
   }
 }
+
 // ------ RUTA MANUAL: CAMINOS REALES ------
 function renderRoutePointsPanel() {
   const panel = document.getElementById('routePointsPanel');
@@ -613,6 +611,7 @@ document.getElementById('exportBtn').onclick = function() {
   a.download = 'actividad_flokoob.gpx';
   a.click();
 };
+
 // ------ HISTORIAL ------
 function saveActivityToHistory() {
   if (state.positions.length < 5) return;
@@ -710,9 +709,7 @@ window.onload = function() {
   updateStats();
   updateLaps();
   updateCharts();
-  // restaurar sos
   document.getElementById('sosContact').value = localStorage.getItem('flokoob_sos')||"";
-  // UI botones
   document.getElementById('startBtn').disabled = false;
   document.getElementById('pauseBtn').disabled = true;
   document.getElementById('lapBtn').disabled = true;
