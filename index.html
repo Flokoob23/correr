@@ -1,56 +1,48 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FLOKOOB - Tu cronómetro de bolsillo</title>
-  <link rel="stylesheet" href="styles.css" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <title>FLOKOOB - tu cronómetro de bolsillo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-  <header>
-    <h1>FLOKOOB</h1>
-    <p class="subtitle">tu cronómetro de bolsillo</p>
-  </header>
-
-  <main>
-    <div id="controls">
-      <button id="startBtn">Iniciar</button>
-      <button id="pauseBtn" disabled>Pausar</button>
-      <button id="resetBtn" disabled>Reiniciar</button>
-      <button id="layerBtn">Cambiar capa</button>
-      <button id="exportBtn" disabled>Exportar GPX</button>
-      <button id="shareBtn" disabled>Compartir Resultados</button>
-      <button id="modeBtn" title="Cambiar modo claro/oscuro">Modo 🌙/☀️</button>
-    </div>
-
-    <div id="mapContainer">
-      <div id="map"></div>
-    </div>
-
+  <div class="container">
+    <header>
+      <h1>FLOKOOB</h1>
+      <h2>tu cronómetro de bolsillo</h2>
+    </header>
     <section id="stats">
-      <h2>Estadísticas</h2>
-      <ul>
-        <li>Distancia: <span id="distance">0.00</span> km</li>
-        <li>Tiempo: <span id="time">00:00:00</span></li>
-        <li>Ritmo: <span id="pace">0:00</span> min/km</li>
-        <li>Velocidad: <span id="speed">0.0</span> km/h</li>
-        <li>Desnivel acumulado: <span id="elevation">0</span> m</li>
-      </ul>
+      <div class="stat"><span id="time">00:00:00</span><small>Tiempo</small></div>
+      <div class="stat"><span id="distance">0.00</span><small>km</small></div>
+      <div class="stat"><span id="pace">0:00</span><small>min/km</small></div>
+      <div class="stat"><span id="elev">0</span><small>m ↑↓</small></div>
     </section>
-
-    <section id="chartSection">
-      <h2>Gráfico de Ritmo</h2>
-      <canvas id="paceChart"></canvas>
+    <section id="controls">
+      <button id="startBtn" class="main-btn">Iniciar</button>
+      <button id="pauseBtn" class="main-btn" disabled>Pausa</button>
+      <button id="lapBtn" class="main-btn" disabled>Parcial</button>
+      <button id="resetBtn" class="main-btn" disabled>Reset</button>
     </section>
-  </main>
-
+    <section id="map"></section>
+    <section id="laps">
+      <h3>Parciales</h3>
+      <ul id="lapsList"></ul>
+    </section>
+    <section id="charts">
+      <h3>Gráfico de Ritmo</h3>
+      <canvas id="paceChart" height="80"></canvas>
+    </section>
+    <footer>
+      <small>© FLOKOOB 2025</small>
+    </footer>
+  </div>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Chart.js for graphics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
-
