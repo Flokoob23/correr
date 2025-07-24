@@ -1,121 +1,88 @@
-/* Reset básico */
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
 body {
-  background: #000;
-  color: #ffd600;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #000;
+  color: #ffeb3b;
 }
 
 header {
-  padding: 1rem;
   text-align: center;
-  background-color: #111;
-  border-bottom: 2px solid #ffd600;
-  user-select: none;
-}
-
-header h1 {
-  font-size: 2.5rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-}
-
-header h2 {
-  font-weight: 400;
-  font-size: 1.2rem;
-  color: #f0e130;
-  font-style: italic;
-  margin-top: 0.25rem;
-}
-
-#map {
-  flex: 1 1 auto;
-  min-height: 300px;
-  border: 3px solid #ffd600;
-  margin: 0.5rem 1rem;
-  border-radius: 10px;
-  box-shadow: 0 0 8px #ffd600aa;
-}
-
-#stats {
-  background-color: #111;
-  border: 2px solid #ffd600;
-  margin: 0 1rem 1rem 1rem;
-  border-radius: 10px;
   padding: 1rem;
+  border-bottom: 2px solid #ffeb3b;
+}
+
+h1 {
+  font-size: 2rem;
+  margin: 0;
+}
+
+.subtitle {
   font-size: 1rem;
-  max-height: 150px;
-  overflow-y: auto;
-  user-select: none;
+  color: #ccc;
 }
 
-#stats div {
-  margin-bottom: 0.5rem;
+#controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  flex-wrap: wrap;
 }
 
-#splits {
-  list-style: none;
-  max-height: 80px;
-  overflow-y: auto;
-  padding-left: 0.5rem;
-}
-
-#splits li {
-  border-bottom: 1px solid #444;
-  padding: 0.2rem 0;
-  font-size: 0.9rem;
-}
-
-#chart-container {
-  background: #111;
-  margin: 0 1rem 1rem 1rem;
-  border-radius: 10px;
-  border: 2px solid #ffd600;
-  padding: 0.5rem;
-  max-height: 150px;
-}
-
-canvas {
-  width: 100% !important;
-  height: 120px !important;
-  user-select: none;
-}
-
-button {
-  background: #ffd600;
+#controls button {
+  padding: 0.5rem 1rem;
+  background-color: #ffeb3b;
   border: none;
-  margin: 0 1rem 1rem 1rem;
-  padding: 1rem 1.5rem;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #000;
+  color: black;
+  font-weight: bold;
+  border-radius: 8px;
   cursor: pointer;
-  border-radius: 12px;
-  transition: background 0.3s ease;
-  user-select: none;
 }
 
-button:disabled {
-  background: #444;
-  color: #aaa;
+#controls button:disabled {
+  background-color: #999;
   cursor: not-allowed;
 }
 
-button:hover:not(:disabled) {
-  background: #fff200;
+#mapContainer {
+  width: 100%;
+  height: 400px;
+  margin: 0 auto;
 }
 
-.leaflet-container {
-  border-radius: 10px;
+#map {
+  width: 100%;
+  height: 100%;
 }
+
+#stats {
+  padding: 1rem;
+  border-top: 2px solid #ffeb3b;
+}
+
+#stats ul {
+  list-style: none;
+  padding: 0;
+}
+
+#stats li {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+#chartSection {
+  padding: 1rem;
+}
+
+canvas {
+  background-color: #1c1c1c;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
 
 
