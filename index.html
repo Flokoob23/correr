@@ -44,8 +44,8 @@
             <input type="text" id="startPoint" placeholder="Ej: Obelisco, Buenos Aires">
             <label for="endPoint">Llegada:</label>
             <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
-            <button id="findRouteBtn" class="btn btn-primary">Buscar Ruta</button>
-            <button id="useCurrentLocationBtn" class="btn btn-secondary">Usar mi ubicación</button>
+            <button id="findRouteBtn" class="btn btn-primary" type="button">Buscar Ruta</button>
+            <button id="useCurrentLocationBtn" class="btn btn-secondary" type="button">Usar mi ubicación</button>
           </div>
         </section>
         <section class="toolbar toolbar-2">
@@ -74,8 +74,8 @@
           <ul id="lapsList"></ul>
         </section>
         <section id="shareSection">
-          <button id="shareBtn" class="btn btn-primary">📤 Compartir</button>
-          <button id="exportBtn" class="btn btn-secondary">⬇ GPX</button>
+          <button id="shareBtn" class="btn btn-primary" type="button">📤 Compartir</button>
+          <button id="exportBtn" class="btn btn-secondary" type="button">⬇ GPX</button>
         </section>
       </section>
       <section id="historySection" class="screen">
@@ -120,7 +120,6 @@
     </footer>
   </div>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
   <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
   <script src="app.js"></script>
