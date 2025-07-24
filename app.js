@@ -1,4 +1,4 @@
-// FLOKOOB - UI limpia, quita puntos, cancela recorridos, rutas y progreso en km/restante
+// FLOKOOB - Running Pro: borrar rutas, cancelar recorrido, tools pro atleta
 
 let map, userMarker, accuracyCircle, pathPolyline, chartPace, chartElev;
 let routePolyline, routeMarkers = [];
@@ -25,6 +25,10 @@ const state = {
   autoRoute: [],
   routeTotalKm: 0,
   routeRemainingKm: 0,
+  hydrationInterval: null,
+  intervalWorkout: null,
+  goalPace: null,
+  goalDistance: null,
 };
 
 function showModal(text) {
@@ -93,6 +97,18 @@ function updateStats() {
   document.getElementById('pace').textContent = (distKm>0.01 ? calcPace(distKm, state.elapsed) : "--:--");
   document.getElementById('speed').textContent = speed.toFixed(1);
   document.getElementById('elev').textContent = `${Math.round(state.elevGain)}↑ ${Math.round(state.elevLoss)}↓`;
+  // Objetivo distancia
+  if(state.goalDistance && distKm < state.goalDistance)
+    showQuickModal(`Faltan ${(state.goalDistance-distKm).toFixed(2)} km para tu objetivo!`, 1800);
+  // Objetivo pace
+  if(state.goalPace && distKm>0.01) {
+    let paceNum = parseFloat(calcPace(distKm, state.elapsed).replace(":",".")); // naive
+    let goalPaceNum = parseFloat(state.goalPace.replace(":","."));
+    if(paceNum < goalPaceNum)
+      showQuickModal(`¡Vas más rápido que tu meta de ${state.goalPace} min/km!`, 1800);
+    else
+      showQuickModal(`Ritmo meta: ${state.goalPace} min/km`,1200);
+  }
 }
 function updateLaps() {
   const ul = document.getElementById('lapsList');
@@ -156,10 +172,11 @@ function initMap() {
   };
   satellite.addTo(map);
   L.control.layers(baseMaps, null, {position:'topright'}).addTo(map);
-  pathPolyline = L.polyline([], {color:'#00e496', weight:6, opacity:0.93}).addTo(map);
+  pathPolyline = L.polyline([], {color:'#3de5a6', weight:6, opacity:0.93}).addTo(map);
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
 
+// ========== UBICACIÓN ==========
 function askLocationPermissionAndTrack() {
   if (!navigator.geolocation) { showModal("Tu navegador no soporta geolocalización."); return; }
   navigator.geolocation.getCurrentPosition(function(pos){
@@ -188,7 +205,7 @@ function updateUserMarker(coord, accuracy=20) {
     userMarker = L.marker(coord, {
       icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
     }).addTo(map);
-    accuracyCircle = L.circle(coord, {color: "#00e49699",fillColor: "#00e49655",fillOpacity: 0.4,radius: accuracy}).addTo(map);
+    accuracyCircle = L.circle(coord, {color: "#3de5a694",fillColor: "#3de5a655",fillOpacity: 0.4,radius: accuracy}).addTo(map);
   }
 }
 
@@ -207,7 +224,6 @@ window.removeManualRoutePoint = function(idx) {
   state.route.splice(idx, 1);
   drawRoute();
   renderRoutePointsPanel();
-  // Redibujar info
   if (state.route.length > 1) {
     let dist = 0;
     for(let i=1;i<state.route.length;i++)
@@ -221,11 +237,21 @@ window.removeManualRoutePoint = function(idx) {
 };
 
 document.getElementById("clearRouteBtn").onclick = function() {
-  state.route = [];
-  drawRoute();
-  renderRoutePointsPanel();
-  document.getElementById("floatingRouteInfo").style.display = "none";
-  showQuickModal("Recorrido cancelado.");
+  if (routeMode) {
+    state.route = [];
+    drawRoute();
+    renderRoutePointsPanel();
+    document.getElementById("floatingRouteInfo").style.display = "none";
+    disableRouteDrawMode();
+  }
+  if (autoRouteMode) {
+    state.autoRoute = [];
+    drawAutoRoute();
+    document.getElementById("floatingRouteInfo").style.display = "none";
+    disableRouteAutoMode();
+  }
+  hideLiveRouteProgress();
+  showQuickModal("Recorrido borrado.");
 };
 function enableRouteDrawMode() {
   routeMode = true;
@@ -331,23 +357,6 @@ document.getElementById('useCurrentLocationBtn').onclick = function() {
   document.getElementById('startPoint').value = `${realCoords.lat},${realCoords.lng}`;
   showQuickModal("Usando tu ubicación como largada.");
 };
-document.getElementById("clearRouteBtn").onclick = function() {
-  if (routeMode) {
-    state.route = [];
-    drawRoute();
-    renderRoutePointsPanel();
-    document.getElementById("floatingRouteInfo").style.display = "none";
-    disableRouteDrawMode();
-  }
-  if (autoRouteMode) {
-    state.autoRoute = [];
-    drawAutoRoute();
-    document.getElementById("floatingRouteInfo").style.display = "none";
-    disableRouteAutoMode();
-  }
-  hideLiveRouteProgress();
-  showQuickModal("Recorrido cancelado.");
-};
 function getRouteWithRoutingMachine(startPt, endPt) {
   if(routingControl) map.removeControl(routingControl);
   routingControl = L.Routing.control({
@@ -432,7 +441,6 @@ function onLocation(pos) {
     const dist = calcDistance(lastPos, coord);
     const timeDelta = (Math.round((now-state.startTime)/1000)) - lastTime;
     const vel = dist / (timeDelta > 0 ? timeDelta : 1);
-    // Filtro: solo si movió más de 3 metros y velocidad < 7 m/s (25 km/h)
     if (dist < 3 || vel > 7) addPoint = false;
   }
   if (addPoint) {
@@ -466,7 +474,6 @@ function onLocation(pos) {
     updateCharts();
     // Progreso live ruta auto
     if(state.autoRoute.length) updateLiveRouteProgress(coord);
-    // No turn detection en este diseño
     const distKm = state.distances[state.distances.length-1]/1000;
     if (voiceOn && distKm >= kmVoiceNext) {
       speak(`Has recorrido ${kmVoiceNext} kilómetro${kmVoiceNext>1?'s':''}. Tiempo: ${formatTime(state.elapsed)}. Ritmo: ${calcPace(distKm,state.elapsed)} por kilómetro. ¡Sigue así!`);
@@ -542,6 +549,42 @@ document.getElementById('voiceBtn').onclick = function() {
 document.getElementById('routeDrawBtn').onclick = function() { enableRouteDrawMode(); };
 document.getElementById('routeAutoBtn').onclick = function() { enableRouteAutoMode(); };
 
+// ========== ATHLETE TOOLS ==========
+document.getElementById('hydrationBtn').onclick = function() {
+  if(state.hydrationInterval) { clearInterval(state.hydrationInterval); state.hydrationInterval = null; showQuickModal("Recordatorios apagados"); return;}
+  state.hydrationInterval = setInterval(()=>{ showQuickModal('💧 ¡Hidrátate!'); speak('¡Hora de hidratarte!'); }, 20*60*1000);
+  showQuickModal("Hidratación activa (cada 20 min).");
+};
+document.getElementById('intervalBtn').onclick = function() {
+  let n = prompt("Intervalos: ¿cuántos repeticiones? (ej: 5)", "5");
+  let fast = prompt("Duración rápido (segundos)", "60");
+  let slow = prompt("Duración suave (segundos)", "90");
+  if(!n || !fast || !slow) return;
+  n = parseInt(n); fast = parseInt(fast); slow = parseInt(slow);
+  let step = 0;
+  showQuickModal("Intervalos programados.");
+  state.intervalWorkout = setInterval(()=>{
+    if(step % 2 === 0) { showQuickModal("Rápido!"); speak("Rápido!"); }
+    else { showQuickModal("Suave."); speak("Suave."); }
+    step++;
+    if(step >= n*2) { clearInterval(state.intervalWorkout); showModal("¡Intervalos completos!"); }
+  }, (step%2==0?fast:slow)*1000);
+};
+document.getElementById('goalPaceBtn').onclick = function() {
+  let pace = prompt("Ritmo objetivo (min:seg por km)", "5:00");
+  if(pace && pace.includes(":")) {
+    state.goalPace = pace;
+    showQuickModal("Meta de ritmo: "+pace+" min/km");
+  }
+};
+document.getElementById('setGoalBtn').onclick = function() {
+  let dist = prompt("Objetivo de distancia en km", "5");
+  if(dist && !isNaN(dist)) {
+    state.goalDistance = parseFloat(dist);
+    showQuickModal("Meta de distancia: "+state.goalDistance+" km");
+  }
+};
+
 // ========== COMPARTIR / EXPORTAR ==========
 document.getElementById('shareBtn').onclick = function() {
   const lastDist = state.distances.length>0 ? state.distances[state.distances.length-1] : 0;
@@ -577,8 +620,8 @@ function handleError(err) { showModal("No se pudo obtener tu ubicación.\nActiva
 window.onload = function() {
   initMap();
   setTimeout(()=>map.invalidateSize(),200);
-  chartPace = new Chart(document.getElementById('paceChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Min/Km',data: [],borderColor: '#00e496',backgroundColor: 'rgba(0,228,150,0.10)',tension: 0.35,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#00e496',grid: {color: '#222'},ticks: { color: "#00e496"}}}}});
-  chartElev = new Chart(document.getElementById('elevChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Elevación',data: [],borderColor: '#f4d800',backgroundColor: 'rgba(244,216,0,0.11)',tension: 0.3,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: false,color: '#f4d800',grid: {color: '#222'},ticks: { color: "#f4d800"}}}}});
+  chartPace = new Chart(document.getElementById('paceChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Min/Km',data: [],borderColor: '#3de5a6',backgroundColor: 'rgba(61,229,166,0.10)',tension: 0.35,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#3de5a6',grid: {color: '#232323'},ticks: { color: "#3de5a6"}}}}});
+  chartElev = new Chart(document.getElementById('elevChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Elevación',data: [],borderColor: '#f4d800',backgroundColor: 'rgba(244,216,0,0.13)',tension: 0.3,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: false,color: '#f4d800',grid: {color: '#232323'},ticks: { color: "#f4d800"}}}}});
   updateStats(); updateLaps(); updateCharts();
   showSection("runSection"); setActiveNav("navRun");
   askLocationPermissionAndTrack();
