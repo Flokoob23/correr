@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>FLOKOOB - tu cronómetro de bolsillo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="styles.css"/>
 </head>
@@ -22,16 +22,21 @@
     <main id="mainContent">
       <section id="runSection">
         <section id="controls">
-          <button id="startBtn" class="main-btn">▶ Iniciar</button>
+          <button id="startBtn" class="main-btn">▶ Empezar</button>
           <button id="pauseBtn" class="main-btn" disabled>⏸ Pausa</button>
           <button id="lapBtn" class="main-btn" disabled>🏁 Parcial</button>
           <button id="resetBtn" class="main-btn" disabled>⟲ Reset</button>
+        </section>
+        <section id="controls2">
           <button id="voiceBtn" class="main-btn">🔊 Voz</button>
-          <button id="routeDrawBtn" class="main-btn">✏ Dibujar Recorrido</button>
-          <button id="routeAutoBtn" class="main-btn">🗺 Ruta Automática</button>
+          <button id="routeDrawBtn" class="main-btn">✏️ Ruta Manual</button>
+          <button id="routeAutoBtn" class="main-btn">🗺️ Ruta Automática</button>
           <button id="locateBtn" class="main-btn">📍 Mi ubicación</button>
         </section>
-        <section id="map"></section>
+        <section id="mapWrapper">
+          <div id="map"></div>
+          <div id="floatingRouteInfo" class="floating-route-info" style="display:none;"></div>
+        </section>
         <section id="routeInputs" style="display:none;">
           <div class="route-form">
             <label for="startPoint">Largada:</label>
@@ -39,17 +44,15 @@
             <label for="endPoint">Llegada:</label>
             <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
             <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
-            <button id="analyzeRouteBtn" class="main-btn">Analizar Recorrido</button>
-            <button id="useCurrentLocationBtn" class="main-btn">Usar mi ubicación actual</button>
+            <button id="useCurrentLocationBtn" class="main-btn">Usar mi ubicación</button>
           </div>
         </section>
         <section id="stats">
           <div class="stat big"><span id="time">00:00:00</span><small>Tiempo</small></div>
           <div class="stat big"><span id="distance">0.00</span><small>km</small></div>
-          <div class="stat"><span id="pace">0:00</span><small>min/km</small></div>
+          <div class="stat"><span id="pace">--:--</span><small>min/km</small></div>
           <div class="stat"><span id="speed">0.0</span><small>km/h</small></div>
           <div class="stat"><span id="elev">0</span><small>m ↑↓</small></div>
-          <div class="stat"><span id="current-elev">0</span><small>m actual</small></div>
         </section>
         <section id="nextTurn" style="display:none;">
           <strong id="turnText"></strong>
@@ -63,18 +66,14 @@
             <h3>Elevación (m)</h3>
             <canvas id="elevChart" height="60"></canvas>
           </div>
-          <div class="chart-block">
-            <h3>Velocidad (km/h)</h3>
-            <canvas id="speedChart" height="60"></canvas>
-          </div>
         </section>
         <section id="laps">
           <h3>Parciales</h3>
           <ul id="lapsList"></ul>
         </section>
         <section id="shareSection">
-          <button id="shareBtn" class="main-btn">📤 Compartir Actividad</button>
-          <button id="exportBtn" class="main-btn">⬇ Exportar GPX</button>
+          <button id="shareBtn" class="main-btn">📤 Compartir</button>
+          <button id="exportBtn" class="main-btn">⬇ GPX</button>
         </section>
         <section id="routeAnalysis" style="display:none;">
           <div id="routeAnalysisContent"></div>
@@ -102,7 +101,6 @@
         </div>
       </section>
     </main>
-    <!-- MODALS -->
     <div id="modalOverlay" class="modal-overlay" style="display:none;">
       <div id="modalBox" class="modal-box">
         <span id="modalText"></span>
