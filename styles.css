@@ -3,15 +3,15 @@
   --accent: #ffd600;
   --accent-dark: #bba500;
   --text: #fff;
-  --secondary: #22252a;
+  --secondary: #23252a;
   --muted: #888;
   --route: #fffd00;
   --turn: #ff8000;
   --btn-active: #fff800;
   --card-bg: #1e1e22;
   --shadow: 0 8px 40px #000a;
+  --active-nav: #ffd60022;
 }
-
 body, html {
   height: 100%;
   margin: 0;
@@ -20,7 +20,6 @@ body, html {
   color: var(--text);
   font-family: 'Segoe UI', Arial, sans-serif;
 }
-
 .container {
   max-width: 440px;
   margin: 0 auto;
@@ -32,7 +31,6 @@ body, html {
   display: flex;
   flex-direction: column;
 }
-
 header {
   text-align: center;
   padding: 22px 0 10px 0;
@@ -40,7 +38,6 @@ header {
   border-bottom: 2px solid var(--accent-dark);
   box-shadow: 0 2px 12px #0002;
 }
-
 h1 {
   color: var(--accent);
   margin: 0;
@@ -49,7 +46,6 @@ h1 {
   font-weight: 900;
   text-shadow: 0 2px 8px #000a;
 }
-
 h2 {
   margin: 0 0 4px 0;
   color: var(--muted);
@@ -57,17 +53,44 @@ h2 {
   font-weight: 400;
   letter-spacing: 1px;
 }
-
+#mainNav {
+  display: flex;
+  justify-content: space-around;
+  background: #18181b;
+  border-bottom: 1px solid #222;
+  box-shadow: 0 2px 10px #ffd60014;
+}
+.nav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 1.08rem;
+  font-weight: 700;
+  padding: 10px 0 8px 0;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  border-bottom: 2px solid transparent;
+}
+.nav-btn.active {
+  background: var(--active-nav);
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+}
+main {
+  flex: 1;
+  background: var(--secondary);
+  min-height: 0;
+}
 #controls {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   background: var(--main-bg);
   border-bottom: 1px solid #222;
-  padding: 10px 0 6px 0;
+  padding: 10px 0 7px 0;
   gap: 7px 2px;
 }
-
 .main-btn {
   background: linear-gradient(90deg, #ffd600 60%, #bba500 100%);
   color: #222;
@@ -87,7 +110,6 @@ h2 {
   align-items: center;
   justify-content: center;
 }
-
 .main-btn:active, .main-btn:focus {
   background: var(--btn-active);
   transform: scale(0.97);
@@ -98,7 +120,6 @@ h2 {
   cursor: not-allowed;
   box-shadow: none;
 }
-
 #map {
   height: 340px;
   width: 100%;
@@ -108,23 +129,22 @@ h2 {
   border-bottom: 2px solid var(--accent-dark);
   box-shadow: 0 2px 10px #ffd60012;
 }
-
-.route-form {
+.route-form, .guide-form, .settings-form {
   background: var(--card-bg);
   border-radius: 12px;
   padding: 12px 10px 10px 10px;
-  margin: 12px 18px 4px 18px;
+  margin: 12px 18px 8px 18px;
   box-shadow: 0 2px 10px #ffd60014;
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
-.route-form label {
+.route-form label, .guide-form label, .settings-form label {
   color: var(--accent);
   font-weight: 700;
   margin-bottom: 2px;
 }
-.route-form input {
+.route-form input, .guide-form input, .settings-form input, .guide-form select {
   padding: 6px 8px;
   border-radius: 6px;
   border: none;
@@ -133,7 +153,6 @@ h2 {
   font-size: 1rem;
   margin-bottom: 2px;
 }
-
 #stats {
   display: flex;
   justify-content: space-around;
@@ -144,7 +163,6 @@ h2 {
   flex-wrap: wrap;
   gap: 0 8px;
 }
-
 .stat {
   text-align: center;
   color: var(--text);
@@ -166,7 +184,6 @@ h2 {
   font-size: 0.8rem;
   color: var(--muted);
 }
-
 #nextTurn {
   margin: 0 22px 0 22px;
   padding: 9px 0 11px 0;
@@ -180,12 +197,10 @@ h2 {
   box-shadow: 0 2px 10px #ffd60022;
   letter-spacing: 1px;
 }
-
 #charts {
   padding: 0 18px 2px 18px;
   background: var(--main-bg);
 }
-
 .chart-block {
   margin: 14px 0 10px 0;
   background: var(--card-bg);
@@ -193,14 +208,12 @@ h2 {
   padding: 10px 10px 14px 10px;
   box-shadow: 0 2px 10px #ffd60022;
 }
-
 #paceChart, #elevChart, #speedChart {
   width: 100% !important;
   background: #161616;
   border-radius: 6px;
   margin-bottom: 2px;
 }
-
 #laps {
   padding: 10px 18px 7px 18px;
 }
@@ -223,7 +236,12 @@ h2 {
   padding: 3px 0;
   margin: 0;
 }
-
+#shareSection {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+}
 footer {
   text-align: center;
   color: var(--muted);
@@ -233,7 +251,6 @@ footer {
   border-top: 1px solid #222;
   letter-spacing: 1px;
 }
-
 .leaflet-control-layers {
   background: #232b !important;
   color: var(--accent) !important;
@@ -247,7 +264,6 @@ footer {
 .leaflet-marker-icon.route-marker {
   filter: drop-shadow(0 0 6px #ff800088);
 }
-
 @media (max-width: 700px) {
   .container {
     max-width: 100%;
