@@ -2,10 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FLOKOOB - Tu cronómetro de bolsillo</title>
   <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -21,6 +24,9 @@
       <button id="pauseBtn" disabled>Pausar</button>
       <button id="resetBtn" disabled>Reiniciar</button>
       <button id="layerBtn">Cambiar capa</button>
+      <button id="exportBtn" disabled>Exportar GPX</button>
+      <button id="shareBtn" disabled>Compartir Resultados</button>
+      <button id="modeBtn" title="Cambiar modo claro/oscuro">Modo 🌙/☀️</button>
     </div>
 
     <div id="mapContainer">
