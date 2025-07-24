@@ -1,16 +1,14 @@
-// FLOKOOB - App profesional con historial, logros, compartir, rutas, análisis y más
+// FLOKOOB - Diseño ÚNICO con modales, satélite, rutas y ubicación real exacta
 
 let map, userMarker, accuracyCircle, pathPolyline;
 let chartPace, chartElev, chartSpeed;
 let routePolyline, routeMarkers = [];
 let routingControl = null;
-let routeMode = false, autoRouteMode = false, guideMode = false;
+let routeMode = false, autoRouteMode = false;
 let watchId = null, started = false, paused = false, timerInterval = null, voiceOn = true;
 let kmVoiceNext = 1;
 let nextTurnIndex = 0;
-let guidePlan = null, guideStep = 0, guideActive = false;
-const STORAGE_KEY = "flokoob_activities_v1";
-const LOGRO_KEY = "flokoob_achievements_v1";
+let realCoords = null;
 const state = {
   positions: [],
   times: [],
@@ -32,7 +30,19 @@ const state = {
   darkMode: true
 };
 
-// ==================== UTILIDADES ====================
+// ========== MODAL FUNCTIONS ==========
+function showModal(text) {
+  document.getElementById('modalText').innerText = text;
+  document.getElementById('modalOverlay').style.display = 'flex';
+}
+function showQuickModal(text, ms=3400) {
+  const qm = document.getElementById('quickModal');
+  document.getElementById('quickModalText').innerText = text;
+  qm.style.display = 'block';
+  setTimeout(()=>{ qm.style.display = 'none'; }, ms);
+}
+
+// ========== UTILIDADES ==========
 function formatTime(sec) {
   const h = Math.floor(sec/3600);
   const m = Math.floor((sec%3600)/60);
@@ -78,53 +88,8 @@ function speak(text) {
   msg.rate = 1;
   window.speechSynthesis.speak(msg);
 }
-function saveActivityToStorage(act) {
-  let arr = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
-  arr.unshift(act);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-}
-function getActivitiesFromStorage() { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); }
-function saveAchievementsToStorage(logros) { localStorage.setItem(LOGRO_KEY, JSON.stringify(logros)); }
-function getAchievementsFromStorage() { return JSON.parse(localStorage.getItem(LOGRO_KEY)||"{}"); }
-function getTotalKm() {
-  const acts = getActivitiesFromStorage();
-  return acts.reduce((acc,a)=>acc+a.distance,0);
-}
-function getBestPace() {
-  const acts = getActivitiesFromStorage();
-  return acts.length ? Math.min(...acts.map(a=>a.avgPace)) : 0;
-}
-function getBestDistance() {
-  const acts = getActivitiesFromStorage();
-  return acts.length ? Math.max(...acts.map(a=>a.distance)) : 0;
-}
-function getBestTime() {
-  const acts = getActivitiesFromStorage();
-  return acts.length ? Math.max(...acts.map(a=>a.elapsed)) : 0;
-}
-function updateAchievements() {
-  let logros = getAchievementsFromStorage();
-  let totalKm = getTotalKm();
-  let bestPace = getBestPace();
-  let bestDist = getBestDistance();
-  let bestTime = getBestTime();
-  logros = {
-    km: totalKm,
-    bestPace,
-    bestDist,
-    bestTime,
-    medals: [
-      totalKm >= 42.195 ? "Maratón" : "",
-      bestDist >= 21.097 ? "Media maratón" : "",
-      bestDist >= 10 ? "10K" : "",
-      bestDist >= 5 ? "5K" : "",
-      bestPace && bestPace<5 ? "Rápido" : ""
-    ].filter(x=>x)
-  };
-  saveAchievementsToStorage(logros);
-}
 
-// ==================== UI ====================
+// ========== UI ==========
 function updateStats() {
   const dist = state.distances.length > 0 ? state.distances[state.distances.length-1] : 0;
   const distKm = dist / 1000;
@@ -176,59 +141,90 @@ function setActiveNav(navId) {
   document.getElementById(navId).classList.add('active');
 }
 
-// ==================== MAPA ====================
+// ========== MAPA ==========
 function initMap() {
   map = L.map('map', {
-    zoomControl: false,
+    zoomControl: true,
     attributionControl:false,
     center: [-34.6037, -58.3816],
-    zoom: 14
+    zoom: 16
   });
+  // Satélite por defecto
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19});
   const dark = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {maxZoom: 19});
-  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
   const baseMaps = {
+    "Satélite": satellite,
     "Negro": dark,
-    "Callejero": osm,
-    "Satélite": satellite
+    "Callejero": osm
   };
-  dark.addTo(map);
+  satellite.addTo(map);
   L.control.layers(baseMaps, null, {position:'topright'}).addTo(map);
   pathPolyline = L.polyline([], {color:'#ffd600', weight:7, opacity:0.93}).addTo(map);
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
-function updateUserMarker(coord, accuracy=20) {
-  if (userMarker) {
-    userMarker.setLatLng(coord);
-    if (accuracyCircle) accuracyCircle.setLatLng(coord).setRadius(accuracy);
-  } else {
-    userMarker = L.marker(coord, {
-      icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
-    }).addTo(map);
-    accuracyCircle = L.circle(coord, {color: "#ffd600aa",fillColor: "#ffd60033",fillOpacity: 0.5,radius: accuracy}).addTo(map);
+
+// ========== UBICACIÓN EN TIEMPO REAL Y PERMISOS ==========
+function askLocationPermissionAndTrack() {
+  if (!navigator.geolocation) {
+    showModal("Tu navegador no soporta geolocalización.");
+    return;
   }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    realCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+    map.setView(realCoords, 17, {animate:true});
+    updateUserMarker(realCoords, pos.coords.accuracy||20);
+    showQuickModal("Ubicación exacta detectada.");
+    // Watch position
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(function(p){
+      realCoords = {lat: p.coords.latitude, lng: p.coords.longitude};
+      updateUserMarker(realCoords, p.coords.accuracy||20);
+      map.setView(realCoords, 17, {animate:true});
+    }, function(e){
+      showModal("No se pudo obtener tu ubicación. Verifica permisos y GPS.");
+    }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
+  }, function(err){
+    showModal("Para usar FLOKOOB concede permisos de ubicación.");
+  }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
 }
 
-// ==================== BOTÓN MI UBICACIÓN ====================
-document.getElementById("locateBtn").onclick = function() {
-  if (userMarker) {
-    map.setView(userMarker.getLatLng(), 17, {animate: true});
-    speak("Volviendo a tu ubicación actual.");
-  } else {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        const lat = pos.coords.latitude, lng = pos.coords.longitude;
-        map.setView([lat, lng], 17, {animate:true});
-        speak("Volviendo a tu ubicación actual.");
-      });
-    }
-  }
-};
+document.getElementById("locateBtn").onclick = askLocationPermissionAndTrack;
 
-// ==================== RUTAS MANUAL/AUTOMÁTICAS ====================
-function enableRouteDrawMode() { routeMode = true; document.getElementById('routeDrawBtn').disabled = true; speak('Modo dibujo activado. Haz clic en el mapa para marcar tu recorrido.'); map.on('click', addRoutePoint); }
-function disableRouteDrawMode() { routeMode = false; document.getElementById('routeDrawBtn').disabled = false; map.off('click', addRoutePoint); }
-function addRoutePoint(e) { const latlng = e.latlng; state.route.push({lat: latlng.lat, lng: latlng.lng}); drawRoute(); }
+// ========== RUTAS MANUAL/AUTOMÁTICAS ==========
+// --- DIBUJAR RECORRIDO MANUAL ---
+function enableRouteDrawMode() {
+  routeMode = true;
+  document.getElementById('routeDrawBtn').disabled = true;
+  speak('Modo dibujo activado. Haz clic en el mapa para marcar tu recorrido.');
+  showQuickModal('Haz clic en el mapa para marcar tu recorrido.');
+  map.on('click', addRoutePoint);
+}
+function disableRouteDrawMode() {
+  routeMode = false;
+  document.getElementById('routeDrawBtn').disabled = false;
+  map.off('click', addRoutePoint);
+}
+function addRoutePoint(e) {
+  const latlng = e.latlng;
+  state.route.push({lat: latlng.lat, lng: latlng.lng});
+  drawRoute();
+  // Si hay al menos dos puntos, mostrar distancia y calles
+  if (state.route.length > 1) {
+    let dist = 0;
+    for(let i=1;i<state.route.length;i++)
+      dist += calcDistance(state.route[i-1],state.route[i]);
+    // Calle por la que ir (usando Nominatim reverse)
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
+      .then(r=>r.json())
+      .then(data=>{
+        showModal(
+          `Distancia actual: ${(dist/1000).toFixed(2)} km<br>` +
+          `Última calle: ${data.address.road || data.display_name || "desconocida"}`
+        );
+      });
+  }
+}
 function drawRoute() {
   routePolyline.setLatLngs(state.route);
   routeMarkers.forEach(m=>map.removeLayer(m));
@@ -246,8 +242,20 @@ function drawRoute() {
     routeMarkers.push(marker);
   });
 }
-function enableRouteAutoMode() { autoRouteMode = true; document.getElementById('routeAutoBtn').disabled = true; document.getElementById('routeInputs').style.display = 'block'; speak('Ingresa la largada y la llegada para buscar una ruta.'); }
-function disableRouteAutoMode() { autoRouteMode = false; document.getElementById('routeAutoBtn').disabled = false; document.getElementById('routeInputs').style.display = 'none'; }
+
+// --- RECORRIDO AUTOMÁTICO ---
+function enableRouteAutoMode() {
+  autoRouteMode = true;
+  document.getElementById('routeAutoBtn').disabled = true;
+  document.getElementById('routeInputs').style.display = 'block';
+  speak('Ingresa la largada y la llegada para buscar una ruta.');
+  showQuickModal('Indica largada y llegada (o usa tu ubicación actual)');
+}
+function disableRouteAutoMode() {
+  autoRouteMode = false;
+  document.getElementById('routeAutoBtn').disabled = false;
+  document.getElementById('routeInputs').style.display = 'none';
+}
 function geocode(address, cb) {
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
     .then(r=>r.json()).then(data=>{
@@ -260,16 +268,27 @@ document.getElementById('findRouteBtn').onclick = function() {
   const startAdr = document.getElementById('startPoint').value;
   const endAdr = document.getElementById('endPoint').value;
   if(!startAdr||!endAdr) {
-    alert("Completa ambos puntos."); return;
+    showQuickModal("Completa ambos puntos.");
+    return;
   }
   geocode(startAdr, ptA=>{
-    if(!ptA) return alert("No se encontró largada.");
+    if(!ptA) return showQuickModal("No se encontró largada.");
     geocode(endAdr, ptB=>{
-      if(!ptB) return alert("No se encontró llegada.");
+      if(!ptB) return showQuickModal("No se encontró llegada.");
       getRouteWithRoutingMachine(ptA, ptB);
       document.getElementById("routeAnalysis").style.display = "none";
     });
   });
+};
+// Usar mi ubicación actual como largada
+document.getElementById('useCurrentLocationBtn').onclick = function() {
+  if(!realCoords) {
+    askLocationPermissionAndTrack();
+    showQuickModal("Ubicación no detectada aún. Activa GPS y permisos.");
+    return;
+  }
+  document.getElementById('startPoint').value = `${realCoords.lat},${realCoords.lng}`;
+  showQuickModal("Usando tu ubicación como largada.");
 };
 function getRouteWithRoutingMachine(startPt, endPt) {
   if(routingControl) map.removeControl(routingControl);
@@ -289,8 +308,16 @@ function getRouteWithRoutingMachine(startPt, endPt) {
     drawAutoRoute();
     disableRouteAutoMode();
     speak('Ruta encontrada y marcada en el mapa. Ya puedes iniciar tu entrenamiento.');
+
+    // Modal con distancia y tiempo aprox
+    const dist = route.summary.totalDistance/1000;
+    const timeMin = route.summary.totalTime/60;
+    showModal(
+      `Distancia: ${dist.toFixed(2)} km.<br>Tiempo estimado corriendo: ${Math.round(timeMin)} min.<br>Calles:<br>` +
+      route.instructions.map(i=>i.text).join("<br>")
+    );
   });
-  routingControl.on('routingerror', function(){ alert('No se pudo calcular la ruta.'); disableRouteAutoMode(); });
+  routingControl.on('routingerror', function(){ showQuickModal('No se pudo calcular la ruta.'); disableRouteAutoMode(); });
 }
 function drawAutoRoute() {
   routePolyline.setLatLngs(state.autoRoute);
@@ -306,7 +333,7 @@ function drawAutoRoute() {
 // --- Analizar recorrido automático ---
 document.getElementById('analyzeRouteBtn').onclick = function() {
   if(state.autoRoute.length<2) {
-    alert("Primero busca una ruta automática.");
+    showQuickModal("Primero busca una ruta automática.");
     return;
   }
   analyzeAutoRoute();
@@ -350,7 +377,6 @@ function analyzeAutoRoute() {
     `;
     document.getElementById("routeAnalysisContent").innerHTML = html;
     document.getElementById("routeAnalysis").style.display = "block";
-    // Gráfico de elevación del recorrido trazado
     setTimeout(()=>{
       new Chart(document.getElementById('routeElevChart').getContext('2d'), {
         type: 'line',
@@ -376,7 +402,7 @@ function analyzeAutoRoute() {
   });
 }
 
-// ==================== ENTRENAMIENTO GUIADO, TURN DETECTION, GPS, TIMER ====================
+// ========== TURN DETECTION Y GPS ==========
 function getTurnInstruction(from, to) { if (!from || !to) return ""; const dx = to.lng - from.lng; const dy = to.lat - from.lat; const angle = Math.atan2(dy, dx) * 180 / Math.PI; if (angle > 30) return "Dobla a la izquierda"; if (angle < -30) return "Dobla a la derecha"; return "Sigue recto"; }
 function checkUpcomingTurn(currentPos) {
   let routeArr = state.autoRoute.length>0 ? state.autoRoute : state.route;
@@ -449,7 +475,6 @@ async function onLocation(pos) {
     updateStats();
     updateCharts();
     checkUpcomingTurn(coord);
-    // checkGuideStep(); // Si implementas entrenamientos guiados
 
     const distKm = state.distances[state.distances.length-1]/1000;
     if (voiceOn && distKm >= kmVoiceNext) {
@@ -457,6 +482,17 @@ async function onLocation(pos) {
       kmVoiceNext++;
       state.lastVoiceKm = kmVoiceNext-1;
     }
+  }
+}
+function updateUserMarker(coord, accuracy=20) {
+  if (userMarker) {
+    userMarker.setLatLng(coord);
+    if (accuracyCircle) accuracyCircle.setLatLng(coord).setRadius(accuracy);
+  } else {
+    userMarker = L.marker(coord, {
+      icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
+    }).addTo(map);
+    accuracyCircle = L.circle(coord, {color: "#ffd600aa",fillColor: "#ffd60033",fillOpacity: 0.5,radius: accuracy}).addTo(map);
   }
 }
 function startTimer() {
@@ -469,7 +505,7 @@ function startTimer() {
   }, 1000);
 }
 
-// ==================== BOTONES ====================
+// ========== BOTONES ==========
 document.getElementById('startBtn').onclick = function() {
   if (started) return;
   started = true; paused = false; state.startTime = Date.now(); state.elapsed = 0;
@@ -479,7 +515,7 @@ document.getElementById('startBtn').onclick = function() {
   updateStats(); updateLaps(); updateCharts(); updateNextTurn("", false);
   this.disabled = true; document.getElementById('pauseBtn').disabled = false; document.getElementById('lapBtn').disabled = false; document.getElementById('resetBtn').disabled = false;
   if (navigator.geolocation) { watchId = navigator.geolocation.watchPosition(onLocation, handleError, {enableHighAccuracy: true, maximumAge: 1000, timeout:10000}); }
-  else { alert("Tu navegador no soporta geolocalización."); }
+  else { showQuickModal("Tu navegador no soporta geolocalización."); }
   startTimer();
   if(voiceOn) speak('Comenzando entrenamiento. ¡Vamos!');
 };
@@ -487,12 +523,12 @@ document.getElementById('pauseBtn').onclick = function() {
   if (!started) return;
   paused = !paused;
   if (paused) {
-    this.textContent = 'Seguir';
+    this.textContent = '⏵ Seguir';
     if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     if(voiceOn) speak('Pausa. Puedes descansar.');
     updateNextTurn("", false);
   } else {
-    this.textContent = 'Pausa';
+    this.textContent = '⏸ Pausa';
     if (navigator.geolocation) { watchId = navigator.geolocation.watchPosition(onLocation, handleError, {enableHighAccuracy: true, maximumAge: 1000, timeout:10000}); }
     state.startTime = Date.now() - state.elapsed*1000;
     startTimer();
@@ -514,7 +550,7 @@ document.getElementById('resetBtn').onclick = function() {
   state.elapsed = 0; state.elevGain = 0; state.elevLoss = 0; kmVoiceNext = 1; state.lastElev = 0; state.lastVoiceKm = 0; nextTurnIndex = 0;
   pathPolyline.setLatLngs([]); if (userMarker) map.removeLayer(userMarker), userMarker = null; if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
   updateStats(); updateLaps(); updateCharts(); updateNextTurn("", false);
-  document.getElementById('startBtn').disabled = false; document.getElementById('pauseBtn').disabled = true; document.getElementById('lapBtn').disabled = true; document.getElementById('resetBtn').disabled = true; document.getElementById('pauseBtn').textContent = 'Pausa';
+  document.getElementById('startBtn').disabled = false; document.getElementById('pauseBtn').disabled = true; document.getElementById('lapBtn').disabled = true; document.getElementById('resetBtn').disabled = true; document.getElementById('pauseBtn').textContent = '⏸ Pausa';
   if(voiceOn) speak('Entrenamiento reseteado. Listo para un nuevo desafío.');
 };
 document.getElementById('voiceBtn').onclick = function() {
@@ -526,7 +562,7 @@ document.getElementById('voiceBtn').onclick = function() {
 document.getElementById('routeDrawBtn').onclick = function() { enableRouteDrawMode(); };
 document.getElementById('routeAutoBtn').onclick = function() { enableRouteAutoMode(); };
 
-// ==================== COMPARTIR / EXPORTAR ====================
+// ========== COMPARTIR / EXPORTAR ==========
 document.getElementById('shareBtn').onclick = function() {
   const lastDist = state.distances.length>0 ? state.distances[state.distances.length-1] : 0;
   const lastTime = state.times.length>0 ? state.times[state.times.length-1] : 0;
@@ -534,7 +570,7 @@ document.getElementById('shareBtn').onclick = function() {
   if(navigator.share) {
     navigator.share({text:msg,url:location.href});
   } else {
-    alert(msg);
+    showModal(msg);
   }
 };
 document.getElementById('exportBtn').onclick = function() {
@@ -550,52 +586,13 @@ document.getElementById('exportBtn').onclick = function() {
   a.click();
 };
 
-// ==================== HISTORIAL ====================
-function renderHistory() {
-  const sec = document.getElementById('historySection');
-  const acts = getActivitiesFromStorage();
-  sec.innerHTML = `<h3>Historial de actividades</h3>` + (acts.length==0 ? "<div>No hay actividades guardadas.</div>" : "<ul>" + acts.map(a=>`<li>${new Date(a.date).toLocaleString()} - ${formatTime(a.elapsed)} - ${(a.distance).toFixed(2)} km - ${calcPace(a.distance,a.elapsed)} <button onclick="viewActivity(${a.id})">Ver</button></li>`).join("") + "</ul>");
-}
-function viewActivity(id) {
-  const acts = getActivitiesFromStorage();
-  const a = acts.find(a=>a.id===id);
-  if(!a) return;
-  alert(`Actividad\n${formatTime(a.elapsed)} - ${(a.distance).toFixed(2)} km\nRitmo promedio: ${calcPace(a.distance,a.elapsed)}`);
-}
-
-// ==================== LOGROS ====================
-function renderAchievements() {
-  updateAchievements();
-  const sec = document.getElementById('achievementsSection');
-  const logros = getAchievementsFromStorage();
-  sec.innerHTML = `<h3>Logros y Medallas</h3>
-  <div>Total km: <strong>${(logros.km||0).toFixed(2)}</strong></div>
-  <div>Mejor ritmo: <strong>${(logros.bestPace||0).toFixed(2)}</strong> min/km</div>
-  <div>Mejor distancia: <strong>${(logros.bestDist||0).toFixed(2)} km</strong></div>
-  <div>Mejor tiempo: <strong>${formatTime(logros.bestTime||0)}</strong></div>
-  <div>Medallas: ${(logros.medals||[]).map(m=>`<span class="medal">${m}</span>`).join(", ")}</div>`;
-}
-
-// ==================== AJUSTES ====================
-function renderSettings() {
-  const sec = document.getElementById('settingsSection');
-  sec.querySelector('#darkModeToggle').checked = state.darkMode;
-  sec.querySelector('#liveShareToggle').checked = state.shareLive;
-  sec.querySelector('#hrmToggle').checked = !!state.hrm;
-  sec.querySelector('#sosContact').value = state.emergencyContact;
-  sec.querySelector('#darkModeToggle').onchange = e => { state.darkMode = e.target.checked; document.body.className = state.darkMode?"dark":"light"; };
-  sec.querySelector('#liveShareToggle').onchange = e => { state.shareLive = e.target.checked; };
-  sec.querySelector('#hrmToggle').onchange = e => { state.hrm = e.target.checked ? [] : null; };
-  sec.querySelector('#sosContact').onchange = e => { state.emergencyContact = e.target.value; };
-}
-
-// ==================== NAVEGACIÓN ====================
+// ========== NAVEGACIÓN ==========
 document.getElementById('navRun').onclick = function() {showSection("runSection");setActiveNav("navRun");};
-document.getElementById('navHistory').onclick = function() {renderHistory();showSection("historySection");setActiveNav("navHistory");};
-document.getElementById('navAchievements').onclick = function() {renderAchievements();showSection("achievementsSection");setActiveNav("navAchievements");};
-document.getElementById('navSettings').onclick = function() {renderSettings();showSection("settingsSection");setActiveNav("navSettings");};
+document.getElementById('navHistory').onclick = function() {/*implementa si quieres*/ showSection("historySection");setActiveNav("navHistory");};
+document.getElementById('navAchievements').onclick = function() {/*implementa si quieres*/ showSection("achievementsSection");setActiveNav("navAchievements");};
+document.getElementById('navSettings').onclick = function() {/*implementa si quieres*/ showSection("settingsSection");setActiveNav("navSettings");};
 
-function handleError(err) { alert("No se pudo obtener tu ubicación.\nActiva el GPS y otorga permisos.\n\n"+err.message); }
+function handleError(err) { showModal("No se pudo obtener tu ubicación.\nActiva el GPS y otorga permisos.\n\n"+err.message); }
 
 window.onload = function() {
   initMap();
@@ -605,4 +602,5 @@ window.onload = function() {
   chartSpeed = new Chart(document.getElementById('speedChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Velocidad',data: [],borderColor: '#ffd600',backgroundColor: 'rgba(255,214,0,0.09)',tension: 0.32,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}}});
   updateStats(); updateLaps(); updateCharts();
   showSection("runSection"); setActiveNav("navRun");
+  askLocationPermissionAndTrack();
 };
