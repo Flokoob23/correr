@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>FLOKOOB</title>
+  <title>FLOKOOB - Running Pro</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <link rel="stylesheet" href="styles.css"/>
@@ -10,7 +10,8 @@
 <body>
   <div class="app-shell">
     <header class="header">
-      <div class="brand"><span class="brand-main">FLOKOOB</span><span class="brand-dot">•</span></div>
+      <div class="weather-bar" id="weatherBar">⏳</div>
+      <div class="brand">FLOKOOB <span class="brand-dot">•</span></div>
       <div class="subtitle">Running Pro Tracker</div>
     </header>
     <nav class="nav">
@@ -21,24 +22,22 @@
     </nav>
     <main id="mainContent" class="main-content">
       <section id="runSection" class="screen active">
-        <section class="toolbar">
-          <button id="startBtn" class="btn btn-primary">▶ Empezar</button>
-          <button id="pauseBtn" class="btn btn-secondary" disabled>⏸ Pausa</button>
-          <button id="lapBtn" class="btn btn-secondary" disabled>🏁 Parcial</button>
-          <button id="resetBtn" class="btn btn-danger" disabled>⟲ Reset</button>
-        </section>
-        <section class="toolbar toolbar-2">
-          <button id="voiceBtn" class="btn btn-tertiary">🔊 Voz</button>
-          <button id="routeDrawBtn" class="btn btn-tertiary">✏️ Ruta Manual</button>
-          <button id="routeAutoBtn" class="btn btn-tertiary">🗺️ Ruta Automática</button>
-          <button id="locateBtn" class="btn btn-tertiary">📍 Ubicación</button>
-          <button id="clearRouteBtn" class="btn btn-tertiary danger" title="Borrar Recorrido" style="display:none;">🗑 Borrar Ruta</button>
-        </section>
+        <div class="top-tools">
+          <form id="searchForm" class="search-form" autocomplete="off">
+            <input type="text" id="searchInput" placeholder="🔎 Buscar dirección, parque, etc…" spellcheck="false">
+            <button type="submit" class="btn btn-search">Ir</button>
+          </form>
+          <button id="expandMapBtn" class="btn btn-mapview" title="Agrandar mapa">🗖</button>
+        </div>
         <section id="mapWrapper" class="map-section">
           <div id="map"></div>
           <div id="floatingRouteInfo" class="floating-route-info" style="display:none;"></div>
           <div id="routePointsPanel" class="route-points-panel"></div>
         </section>
+        <div class="panel-distance-estimate" id="distanceEstimatePanel" style="display:none;">
+          <div><b><span id="distanceRemaining">0.00</span> km</b> para llegar</div>
+          <div class="panel-time"><span id="timeRemaining">--:--</span> estimado</div>
+        </div>
         <section id="routeInputs" style="display:none;">
           <div class="route-form">
             <label for="startPoint">Largada:</label>
@@ -49,6 +48,17 @@
             <button id="useCurrentLocationBtn" class="btn btn-secondary">Usar mi ubicación</button>
           </div>
         </section>
+        <section class="toolbar toolbar-2">
+          <button id="startBtn" class="btn btn-primary">▶ Empezar</button>
+          <button id="pauseBtn" class="btn btn-secondary" disabled>⏸ Pausa</button>
+          <button id="lapBtn" class="btn btn-secondary" disabled>🏁 Parcial</button>
+          <button id="resetBtn" class="btn btn-danger" disabled>⟲ Reset</button>
+          <button id="voiceBtn" class="btn btn-tertiary">🔊 Voz</button>
+          <button id="routeDrawBtn" class="btn btn-tertiary">✏️ Ruta Manual</button>
+          <button id="routeAutoBtn" class="btn btn-tertiary">🗺️ Ruta Automática</button>
+          <button id="locateBtn" class="btn btn-tertiary">📍 Ubicación</button>
+          <button id="clearRouteBtn" class="btn btn-tertiary danger" style="display:none;">🗑 Borrar Ruta</button>
+        </section>
         <section id="stats" class="stats-section">
           <div class="stat big"><span id="time">00:00:00</span><small>Tiempo</small></div>
           <div class="stat big"><span id="distance">0.00</span><small>km</small></div>
@@ -58,28 +68,6 @@
         </section>
         <section id="nextTurn" style="display:none;">
           <strong id="turnText"></strong>
-        </section>
-        <section class="progress-route" id="liveRouteProgress" style="display:none;">
-          <div><span id="liveRouteKm"></span> km restantes (<span id="liveRoutePercent"></span>%)</div>
-          <div class="progress-bar">
-            <div id="liveRouteBar" class="progress-bar-inner"></div>
-          </div>
-        </section>
-        <section class="athlete-tools">
-          <button id="hydrationBtn" class="btn btn-tertiary" title="Recordatorio de hidratación">💧 Hidratación</button>
-          <button id="intervalBtn" class="btn btn-tertiary" title="Intervalos">⏱ Intervalos</button>
-          <button id="goalPaceBtn" class="btn btn-tertiary" title="Meta de ritmo">🎯 Meta Ritmo</button>
-          <button id="setGoalBtn" class="btn btn-tertiary" title="Fijar objetivo">🏅 Objetivo</button>
-        </section>
-        <section id="charts" class="charts-section">
-          <div class="chart-block">
-            <h3>Ritmo (min/km)</h3>
-            <canvas id="paceChart" height="60"></canvas>
-          </div>
-          <div class="chart-block">
-            <h3>Elevación (m)</h3>
-            <canvas id="elevChart" height="60"></canvas>
-          </div>
         </section>
         <section id="laps">
           <h3>Parciales</h3>
