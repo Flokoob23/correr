@@ -30,7 +30,7 @@
           <button id="voiceBtn" class="main-btn">🔊 Voz</button>
           <button id="routeDrawBtn" class="main-btn">Dibujar Recorrido</button>
           <button id="routeAutoBtn" class="main-btn">Ruta Automática</button>
-          <button id="guideBtn" class="main-btn">Entrenamiento Guiado</button>
+          <button id="locateBtn" class="main-btn">Mi ubicación</button>
         </section>
         <section id="map"></section>
         <section id="routeInputs" style="display:none;">
@@ -40,19 +40,7 @@
             <label for="endPoint">Llegada:</label>
             <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
             <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
-          </div>
-        </section>
-        <section id="guidedInputs" style="display:none;">
-          <div class="guide-form">
-            <label for="guideType">Tipo:</label>
-            <select id="guideType">
-              <option value="interval">Intervalos</option>
-              <option value="fartlek">Fartlek</option>
-              <option value="custom">Personalizado</option>
-            </select>
-            <label for="guideDetails">Detalles:</label>
-            <input type="text" id="guideDetails" placeholder="Ej: 5x400m rápido, 2min suave">
-            <button id="startGuideBtn" class="main-btn">Programar</button>
+            <button id="analyzeRouteBtn" class="main-btn">Analizar Recorrido</button>
           </div>
         </section>
         <section id="stats">
@@ -87,6 +75,9 @@
         <section id="shareSection">
           <button id="shareBtn" class="main-btn">Compartir Actividad</button>
           <button id="exportBtn" class="main-btn">Exportar GPX</button>
+        </section>
+        <section id="routeAnalysis" style="display:none;">
+          <div id="routeAnalysisContent"></div>
         </section>
       </section>
       <!-- Historial -->
