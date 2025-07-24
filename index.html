@@ -12,56 +12,109 @@
   <div class="container">
     <header>
       <h1>FLOKOOB</h1>
-      <h2>tu cronómetro de bolsillo</h2>
+      <h2>Tu cronómetro de bolsillo</h2>
     </header>
-    <section id="controls">
-      <button id="startBtn" class="main-btn">Iniciar</button>
-      <button id="pauseBtn" class="main-btn" disabled>Pausa</button>
-      <button id="lapBtn" class="main-btn" disabled>Parcial</button>
-      <button id="resetBtn" class="main-btn" disabled>Reset</button>
-      <button id="voiceBtn" class="main-btn">🔊 Voz</button>
-      <button id="routeDrawBtn" class="main-btn">Dibujar Recorrido</button>
-      <button id="routeAutoBtn" class="main-btn">Ruta Automática</button>
-    </section>
-    <section id="map"></section>
-    <section id="routeInputs" style="display:none;">
-      <div class="route-form">
-        <label for="startPoint">Largada:</label>
-        <input type="text" id="startPoint" placeholder="Ej: Obelisco, Buenos Aires">
-        <label for="endPoint">Llegada:</label>
-        <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
-        <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
-      </div>
-    </section>
-    <section id="stats">
-      <div class="stat big"><span id="time">00:00:00</span><small>Tiempo</small></div>
-      <div class="stat big"><span id="distance">0.00</span><small>km</small></div>
-      <div class="stat"><span id="pace">0:00</span><small>min/km</small></div>
-      <div class="stat"><span id="speed">0.0</span><small>km/h</small></div>
-      <div class="stat"><span id="elev">0</span><small>m ↑↓</small></div>
-      <div class="stat"><span id="current-elev">0</span><small>m actual</small></div>
-    </section>
-    <section id="nextTurn" style="display:none;">
-      <strong id="turnText"></strong>
-    </section>
-    <section id="charts">
-      <div class="chart-block">
-        <h3>Ritmo (min/km)</h3>
-        <canvas id="paceChart" height="60"></canvas>
-      </div>
-      <div class="chart-block">
-        <h3>Elevación (m)</h3>
-        <canvas id="elevChart" height="60"></canvas>
-      </div>
-      <div class="chart-block">
-        <h3>Velocidad (km/h)</h3>
-        <canvas id="speedChart" height="60"></canvas>
-      </div>
-    </section>
-    <section id="laps">
-      <h3>Parciales</h3>
-      <ul id="lapsList"></ul>
-    </section>
+    <nav id="mainNav">
+      <button id="navRun" class="nav-btn active">Entrenar</button>
+      <button id="navHistory" class="nav-btn">Historial</button>
+      <button id="navAchievements" class="nav-btn">Logros</button>
+      <button id="navSettings" class="nav-btn">Ajustes</button>
+    </nav>
+    <main id="mainContent">
+      <!-- Entrenamiento -->
+      <section id="runSection">
+        <section id="controls">
+          <button id="startBtn" class="main-btn">Iniciar</button>
+          <button id="pauseBtn" class="main-btn" disabled>Pausa</button>
+          <button id="lapBtn" class="main-btn" disabled>Parcial</button>
+          <button id="resetBtn" class="main-btn" disabled>Reset</button>
+          <button id="voiceBtn" class="main-btn">🔊 Voz</button>
+          <button id="routeDrawBtn" class="main-btn">Dibujar Recorrido</button>
+          <button id="routeAutoBtn" class="main-btn">Ruta Automática</button>
+          <button id="guideBtn" class="main-btn">Entrenamiento Guiado</button>
+        </section>
+        <section id="map"></section>
+        <section id="routeInputs" style="display:none;">
+          <div class="route-form">
+            <label for="startPoint">Largada:</label>
+            <input type="text" id="startPoint" placeholder="Ej: Obelisco, Buenos Aires">
+            <label for="endPoint">Llegada:</label>
+            <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
+            <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
+          </div>
+        </section>
+        <section id="guidedInputs" style="display:none;">
+          <div class="guide-form">
+            <label for="guideType">Tipo:</label>
+            <select id="guideType">
+              <option value="interval">Intervalos</option>
+              <option value="fartlek">Fartlek</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            <label for="guideDetails">Detalles:</label>
+            <input type="text" id="guideDetails" placeholder="Ej: 5x400m rápido, 2min suave">
+            <button id="startGuideBtn" class="main-btn">Programar</button>
+          </div>
+        </section>
+        <section id="stats">
+          <div class="stat big"><span id="time">00:00:00</span><small>Tiempo</small></div>
+          <div class="stat big"><span id="distance">0.00</span><small>km</small></div>
+          <div class="stat"><span id="pace">0:00</span><small>min/km</small></div>
+          <div class="stat"><span id="speed">0.0</span><small>km/h</small></div>
+          <div class="stat"><span id="elev">0</span><small>m ↑↓</small></div>
+          <div class="stat"><span id="current-elev">0</span><small>m actual</small></div>
+        </section>
+        <section id="nextTurn" style="display:none;">
+          <strong id="turnText"></strong>
+        </section>
+        <section id="charts">
+          <div class="chart-block">
+            <h3>Ritmo (min/km)</h3>
+            <canvas id="paceChart" height="60"></canvas>
+          </div>
+          <div class="chart-block">
+            <h3>Elevación (m)</h3>
+            <canvas id="elevChart" height="60"></canvas>
+          </div>
+          <div class="chart-block">
+            <h3>Velocidad (km/h)</h3>
+            <canvas id="speedChart" height="60"></canvas>
+          </div>
+        </section>
+        <section id="laps">
+          <h3>Parciales</h3>
+          <ul id="lapsList"></ul>
+        </section>
+        <section id="shareSection">
+          <button id="shareBtn" class="main-btn">Compartir Actividad</button>
+          <button id="exportBtn" class="main-btn">Exportar GPX</button>
+        </section>
+      </section>
+      <!-- Historial -->
+      <section id="historySection" style="display:none;"></section>
+      <!-- Logros -->
+      <section id="achievementsSection" style="display:none;"></section>
+      <!-- Ajustes -->
+      <section id="settingsSection" style="display:none;">
+        <div class="settings-form">
+          <label>
+            <input type="checkbox" id="darkModeToggle">
+            Modo Oscuro
+          </label>
+          <label>
+            <input type="checkbox" id="liveShareToggle">
+            Permitir seguimiento en vivo
+          </label>
+          <label>
+            <input type="checkbox" id="hrmToggle">
+            Sensores de pulso (experimental)
+          </label>
+          <label>
+            Emergencia SOS: <input type="text" id="sosContact" placeholder="Email o teléfono">
+          </label>
+        </div>
+      </section>
+    </main>
     <footer>
       <small>© FLOKOOB 2025</small>
     </footer>
