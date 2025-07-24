@@ -14,6 +14,25 @@
       <h1>FLOKOOB</h1>
       <h2>tu cronómetro de bolsillo</h2>
     </header>
+    <section id="controls">
+      <button id="startBtn" class="main-btn">Iniciar</button>
+      <button id="pauseBtn" class="main-btn" disabled>Pausa</button>
+      <button id="lapBtn" class="main-btn" disabled>Parcial</button>
+      <button id="resetBtn" class="main-btn" disabled>Reset</button>
+      <button id="voiceBtn" class="main-btn">🔊 Voz</button>
+      <button id="routeDrawBtn" class="main-btn">Dibujar Recorrido</button>
+      <button id="routeAutoBtn" class="main-btn">Ruta Automática</button>
+    </section>
+    <section id="map"></section>
+    <section id="routeInputs" style="display:none;">
+      <div class="route-form">
+        <label for="startPoint">Largada:</label>
+        <input type="text" id="startPoint" placeholder="Ej: Obelisco, Buenos Aires">
+        <label for="endPoint">Llegada:</label>
+        <input type="text" id="endPoint" placeholder="Ej: Planetario, Buenos Aires">
+        <button id="findRouteBtn" class="main-btn">Buscar Ruta</button>
+      </div>
+    </section>
     <section id="stats">
       <div class="stat big"><span id="time">00:00:00</span><small>Tiempo</small></div>
       <div class="stat big"><span id="distance">0.00</span><small>km</small></div>
@@ -22,17 +41,6 @@
       <div class="stat"><span id="elev">0</span><small>m ↑↓</small></div>
       <div class="stat"><span id="current-elev">0</span><small>m actual</small></div>
     </section>
-    <section id="controls">
-      <button id="startBtn" class="main-btn">Iniciar</button>
-      <button id="pauseBtn" class="main-btn" disabled>Pausa</button>
-      <button id="lapBtn" class="main-btn" disabled>Parcial</button>
-      <button id="resetBtn" class="main-btn" disabled>Reset</button>
-      <button id="voiceBtn" class="main-btn">🔊 Voz</button>
-      <button id="routeBtn" class="main-btn">Crear Recorrido</button>
-      <button id="saveRouteBtn" class="main-btn" style="display:none;">Guardar Recorrido</button>
-      <button id="clearRouteBtn" class="main-btn" style="display:none;">Borrar Recorrido</button>
-    </section>
-    <section id="map"></section>
     <section id="nextTurn" style="display:none;">
       <strong id="turnText"></strong>
     </section>
@@ -62,6 +70,9 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <!-- Chart.js for graphics -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Leaflet Routing Machine (para rutas automáticas) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
