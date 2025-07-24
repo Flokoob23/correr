@@ -1,14 +1,15 @@
 :root {
-  --main-bg: #151515;
+  --main-bg: #141518;
   --accent: #ffd600;
   --accent-dark: #bba500;
   --text: #fff;
-  --secondary: #232323;
+  --secondary: #22252a;
   --muted: #888;
   --route: #fffd00;
   --turn: #ff8000;
   --btn-active: #fff800;
   --card-bg: #1e1e22;
+  --shadow: 0 8px 40px #000a;
 }
 
 body, html {
@@ -24,9 +25,9 @@ body, html {
   max-width: 440px;
   margin: 0 auto;
   background: var(--secondary);
-  border-radius: 18px;
+  border-radius: 22px;
   overflow: hidden;
-  box-shadow: 0 8px 40px #000b;
+  box-shadow: var(--shadow);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -34,15 +35,16 @@ body, html {
 
 header {
   text-align: center;
-  padding: 20px 0 12px 0;
-  background: var(--main-bg);
+  padding: 22px 0 10px 0;
+  background: linear-gradient(90deg, #191a20 60%, #232323 100%);
   border-bottom: 2px solid var(--accent-dark);
+  box-shadow: 0 2px 12px #0002;
 }
 
 h1 {
   color: var(--accent);
   margin: 0;
-  font-size: 2.3rem;
+  font-size: 2.2rem;
   letter-spacing: 2px;
   font-weight: 900;
   text-shadow: 0 2px 8px #000a;
@@ -62,24 +64,33 @@ h2 {
   justify-content: center;
   background: var(--main-bg);
   border-bottom: 1px solid #222;
-  padding: 12px 0 8px 0;
+  padding: 10px 0 6px 0;
+  gap: 7px 2px;
 }
 
 .main-btn {
   background: linear-gradient(90deg, #ffd600 60%, #bba500 100%);
-  color: #111;
+  color: #222;
   border: none;
-  border-radius: 10px;
-  padding: 10px 18px;
-  font-size: 1.08rem;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.93rem;
   font-weight: 700;
   cursor: pointer;
-  margin: 3px 6px 3px 0;
-  transition: background 0.16s, box-shadow 0.16s;
-  box-shadow: 0 2px 10px #ffd60022;
+  margin: 2px 2px 2px 0;
+  transition: background 0.16s, box-shadow 0.16s, transform 0.1s;
+  box-shadow: 0 2px 8px #ffd60018;
+  min-width: 84px;
+  max-width: 120px;
+  height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .main-btn:active, .main-btn:focus {
   background: var(--btn-active);
+  transform: scale(0.97);
 }
 .main-btn:disabled {
   background: #444;
@@ -89,23 +100,24 @@ h2 {
 }
 
 #map {
-  height: 240px;
+  height: 340px;
   width: 100%;
   margin: 0;
   background: #222;
-  z-index: 10;
+  z-index: 20;
   border-bottom: 2px solid var(--accent-dark);
+  box-shadow: 0 2px 10px #ffd60012;
 }
 
 .route-form {
   background: var(--card-bg);
   border-radius: 12px;
-  padding: 14px 12px 12px 12px;
+  padding: 12px 10px 10px 10px;
   margin: 12px 18px 4px 18px;
   box-shadow: 0 2px 10px #ffd60014;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 .route-form label {
   color: var(--accent);
@@ -113,10 +125,10 @@ h2 {
   margin-bottom: 2px;
 }
 .route-form input {
-  padding: 7px 9px;
+  padding: 6px 8px;
   border-radius: 6px;
   border: none;
-  background: #2c2c2c;
+  background: #22272c;
   color: var(--text);
   font-size: 1rem;
   margin-bottom: 2px;
@@ -127,27 +139,28 @@ h2 {
   justify-content: space-around;
   align-items: stretch;
   background: var(--main-bg);
-  padding: 11px 0 8px 0;
+  padding: 12px 0 6px 0;
   border-bottom: 1px solid #333;
   flex-wrap: wrap;
+  gap: 0 8px;
 }
 
 .stat {
   text-align: center;
   color: var(--text);
   flex: 1;
-  min-width: 72px;
+  min-width: 75px;
   margin: 0 2px;
   padding-bottom: 4px;
 }
 .stat span {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   color: var(--accent);
   font-weight: bold;
   display: block;
 }
 .stat.big span {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
 }
 .stat small {
   font-size: 0.8rem;
@@ -174,7 +187,7 @@ h2 {
 }
 
 .chart-block {
-  margin: 16px 0 12px 0;
+  margin: 14px 0 10px 0;
   background: var(--card-bg);
   border-radius: 10px;
   padding: 10px 10px 14px 10px;
@@ -189,11 +202,11 @@ h2 {
 }
 
 #laps {
-  padding: 11px 18px 7px 18px;
+  padding: 10px 18px 7px 18px;
 }
 #laps h3, #charts h3 {
   color: var(--accent);
-  font-size: 1.02rem;
+  font-size: 1.04rem;
   margin: 8px 0 5px 0;
   font-weight: 700;
   letter-spacing: 1px;
@@ -214,10 +227,11 @@ h2 {
 footer {
   text-align: center;
   color: var(--muted);
-  padding: 12px 0 8px 0;
-  font-size: 0.93rem;
+  padding: 14px 0 10px 0;
+  font-size: 0.95rem;
   background: var(--main-bg);
   border-top: 1px solid #222;
+  letter-spacing: 1px;
 }
 
 .leaflet-control-layers {
@@ -234,15 +248,15 @@ footer {
   filter: drop-shadow(0 0 6px #ff800088);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .container {
     max-width: 100%;
     border-radius: 0;
   }
   #map {
-    height: 180px;
+    height: 250px;
+  }
+  #controls {
+    padding: 7px 0 5px 0;
   }
 }
-
-
-
