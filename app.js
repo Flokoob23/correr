@@ -1,35 +1,26 @@
-// FLOKOOB - Running Pro: rutas manuales óptimas, clima, búsqueda, UI top
+v// FLOKOOB Running Pro Tracker - Código completo
+// Reemplaza "TU_API_KEY_OPENWEATHERMAP" por tu propia API key de OpenWeatherMap si quieres clima real.
+const OWM_API_KEY = "TU_API_KEY_OPENWEATHERMAP";
 
-const OWM_API_KEY = "TU_API_KEY_OPENWEATHERMAP"; // ← Cambia esto por tu API KEY de OpenWeatherMap
-
+// ------ ESTADO ------
 let map, userMarker, accuracyCircle, pathPolyline, chartPace, chartElev;
 let routePolyline, routeMarkers = [];
-let routingControl = null;
+let routingControl = null, manualRouting = null;
 let routeMode = false, autoRouteMode = false;
+let manualRoutePoints = [];
 let watchId = null, started = false, paused = false, timerInterval = null, voiceOn = true;
 let kmVoiceNext = 1;
 let realCoords = null;
-let manualRouting = null;
+const STORAGE_KEY = "flokoob_activities_v1";
+const LOGRO_KEY = "flokoob_achievements_v1";
 const state = {
-  positions: [],
-  times: [],
-  distances: [],
-  elevations: [],
-  speeds: [],
-  laps: [],
-  startTime: null,
-  elapsed: 0,
-  elevGain: 0,
-  elevLoss: 0,
-  lastElev: 0,
-  lastVoiceKm: 0,
-  route: [],
-  autoRoute: [],
-  routeTotalKm: 0,
-  routeRemainingKm: 0
+  positions: [], times: [], distances: [], elevations: [], speeds: [],
+  laps: [], startTime: null, elapsed: 0, elevGain: 0, elevLoss: 0,
+  lastElev: 0, lastVoiceKm: 0, route: [], autoRoute: [],
+  routeTotalKm: 0, routeRemainingKm: 0
 };
 
-// === MODALS ===
+// ------ UI Y MODALS ------
 function showModal(text) {
   document.getElementById('modalText').innerHTML = text;
   document.getElementById('modalOverlay').style.display = 'flex';
@@ -40,8 +31,16 @@ function showQuickModal(text, ms=1900) {
   qm.style.display = 'block';
   setTimeout(()=>{ qm.style.display = 'none'; }, ms);
 }
+function showSection(secId) {
+  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
+  document.getElementById(secId).classList.add('active');
+}
+function setActiveNav(navId) {
+  Array.from(document.querySelectorAll('.nav-btn')).forEach(btn=>btn.classList.remove('active'));
+  document.getElementById(navId).classList.add('active');
+}
 
-// === WEATHER ===
+// ------ WEATHER ------
 function emojiWeather(main, code, cloud, rain, snow) {
   if(code>=200 && code<300) return "⛈️";
   if(code>=300 && code<600) return "🌦️";
@@ -68,22 +67,80 @@ function updateWeatherBar(lat, lon) {
     }).catch(()=>{ document.getElementById("weatherBar").innerText = "🌐"; });
 }
 
-// === BUSCADOR DE UBICACIONES ===
-document.getElementById('searchForm').onsubmit = function(e) {
+// === BUSCADOR DE UBICACIONES CON SUGERENCIAS EN VIVO ===
+const searchInput = document.getElementById('searchInput');
+const searchForm = document.getElementById('searchForm');
+let searchDropdown = document.createElement('div');
+searchDropdown.className = 'search-dropdown';
+searchDropdown.style.display = 'none';
+searchDropdown.style.position = 'absolute';
+searchDropdown.style.zIndex = 1001;
+searchInput.parentNode.appendChild(searchDropdown);
+
+let searchTimer = null;
+
+searchInput.oninput = function(e) {
+  clearTimeout(searchTimer);
+  let val = searchInput.value.trim();
+  if (val.length < 2) {
+    searchDropdown.style.display = 'none';
+    return;
+  }
+  searchTimer = setTimeout(() => {
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=7&addressdetails=1`)
+      .then(r=>r.json()).then(data=>{
+        if(data.length === 0) {
+          searchDropdown.innerHTML = '<div class="search-dropdown-item">Sin resultados</div>';
+          searchDropdown.style.display = 'block';
+        } else {
+          searchDropdown.innerHTML = data.map((item, idx) => `
+            <div class="search-dropdown-item" data-lat="${item.lat}" data-lon="${item.lon}">
+              <span class="search-main">${item.display_name.split(",")[0]}</span>
+              <span class="search-addr">${item.display_name.slice(item.display_name.indexOf(",")+1).trim()}</span>
+            </div>
+          `).join('');
+          searchDropdown.style.display = 'block';
+          // Añadir eventos
+          Array.from(searchDropdown.children).forEach(item => {
+            item.onclick = function() {
+              const lat = parseFloat(item.getAttribute('data-lat'));
+              const lon = parseFloat(item.getAttribute('data-lon'));
+              map.setView([lat, lon], 16, {animate:true});
+              showQuickModal('📍 '+item.querySelector('.search-main').textContent);
+              searchInput.value = item.querySelector('.search-main').textContent;
+              searchDropdown.style.display = 'none';
+            };
+          });
+        }
+      });
+  }, 180);
+};
+
+searchInput.onblur = function() {
+  setTimeout(()=>searchDropdown.style.display = 'none', 200);
+};
+
+searchInput.onfocus = function() {
+  if(searchDropdown.innerHTML && searchDropdown.innerHTML !== '') {
+    searchDropdown.style.display = 'block';
+  }
+};
+
+searchForm.onsubmit = function(e) {
   e.preventDefault();
-  const q = document.getElementById('searchInput').value.trim();
+  const q = searchInput.value.trim();
   if(!q) return;
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`)
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`)
     .then(r=>r.json()).then(data=>{
       if(data.length) {
         map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 16, {animate:true});
         showQuickModal('📍 '+(data[0].display_name.split(",")[0]));
       } else showQuickModal("No encontrado.");
     });
+  searchDropdown.style.display = 'none';
   return false;
 };
-
-// === AGRANDAR/REDUCIR MAPA ===
+// ------ AGRANDAR/REDUCIR MAPA ------
 let mapExpanded = false;
 document.getElementById('expandMapBtn').onclick = function() {
   mapExpanded = !mapExpanded;
@@ -103,7 +160,7 @@ document.getElementById('expandMapBtn').onclick = function() {
   document.getElementById('distanceEstimatePanel').style.transform = mapExpanded ? "translateX(-50%)":"";
 };
 
-// === UTILIDADES ===
+// ------ UTILIDADES ------
 function formatTime(sec) {
   const h = Math.floor(sec/3600);
   const m = Math.floor((sec%3600)/60);
@@ -131,8 +188,48 @@ function getSpeed(last, now, tdelta) {
   const d = calcDistance(last, now);
   return (d/tdelta)*3.6;
 }
+function speak(text) {
+  if (!voiceOn || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const msg = new SpeechSynthesisUtterance(text);
+  msg.lang = "es-ES";
+  msg.rate = 1;
+  window.speechSynthesis.speak(msg);
+}
 
-// === MAPA, UBICACIÓN, Y WEATHER ===
+// ------ UI STATS ------
+function updateStats() {
+  const dist = state.distances.length > 0 ? state.distances[state.distances.length-1] : 0;
+  const distKm = dist / 1000;
+  const speed = state.speeds.length > 0 ? state.speeds[state.speeds.length-1] : 0;
+  document.getElementById('distance').textContent = distKm.toFixed(2);
+  document.getElementById('time').textContent = formatTime(state.elapsed);
+  document.getElementById('pace').textContent = (distKm>0.01 ? calcPace(distKm, state.elapsed) : "--:--");
+  document.getElementById('speed').textContent = speed.toFixed(1);
+  document.getElementById('elev').textContent = `${Math.round(state.elevGain)}↑ ${Math.round(state.elevLoss)}↓`;
+}
+function updateLaps() {
+  const ul = document.getElementById('lapsList');
+  ul.innerHTML = '';
+  if (state.laps.length === 0) {
+    ul.innerHTML = '<li style="color:#888">Ningún parcial aún.</li>';
+  } else {
+    state.laps.forEach((lap,i) => {
+      ul.innerHTML += `<li>Parcial ${i+1}: ${formatTime(lap.time)} - ${lap.dist.toFixed(2)} km</li>`;
+    });
+  }
+}
+function updateCharts() {
+  // Si necesitas gráficos de ritmo y elevación, aquí podrías integrar Chart.js.
+}
+function updateNextTurn(text, show) {
+  const section = document.getElementById('nextTurn');
+  const turnText = document.getElementById('turnText');
+  if (show) { section.style.display = 'block'; turnText.textContent = text; }
+  else { section.style.display = 'none'; }
+}
+
+// ------ MAPA Y UBICACIÓN ------
 function initMap() {
   map = L.map('map', {
     zoomControl: true,
@@ -155,7 +252,6 @@ function initMap() {
   pathPolyline = L.polyline([], {color:'#50e3a4', weight:6, opacity:0.93}).addTo(map);
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
-
 function askLocationPermissionAndTrack() {
   if (!navigator.geolocation) { showModal("Tu navegador no soporta geolocalización."); return; }
   navigator.geolocation.getCurrentPosition(function(pos){
@@ -176,7 +272,6 @@ function askLocationPermissionAndTrack() {
   }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
 }
 document.getElementById("locateBtn").onclick = askLocationPermissionAndTrack;
-
 function updateUserMarker(coord, accuracy=20) {
   if (userMarker) {
     userMarker.setLatLng(coord);
@@ -188,9 +283,7 @@ function updateUserMarker(coord, accuracy=20) {
     accuracyCircle = L.circle(coord, {color: "#50e3a499",fillColor: "#50e3a455",fillOpacity: 0.4,radius: accuracy}).addTo(map);
   }
 }
-
-// === RUTA MANUAL ÓPTIMA (no recta, siempre el camino más rápido) ===
-let manualRoutePoints = [];
+// ------ RUTA MANUAL: CAMINOS REALES ------
 function renderRoutePointsPanel() {
   const panel = document.getElementById('routePointsPanel');
   if (!routeMode || manualRoutePoints.length === 0) { panel.innerHTML = ""; panel.style.display = "none"; return; }
@@ -268,7 +361,7 @@ function traceManualRoute() {
   manualRouting.on('routingerror', function(){ showQuickModal('No se pudo calcular ruta.'); });
 }
 
-// === RUTA AUTOMÁTICA ===
+// ------ RUTA AUTOMÁTICA ------
 function enableRouteAutoMode() {
   autoRouteMode = true;
   document.getElementById('routeAutoBtn').disabled = true;
@@ -347,7 +440,7 @@ function drawAutoRoute() {
   }
 }
 
-// === PROGRESO EN RUTA ===
+// ------ PROGRESO EN RUTA ------
 function showLiveRouteProgress(totalKm, remainKm) {
   state.routeTotalKm = totalKm;
   state.routeRemainingKm = remainKm;
@@ -375,7 +468,7 @@ function updateLiveRouteProgress(currentPos) {
   showLiveRouteProgress(state.routeTotalKm || remainKm, remainKm);
 }
 
-// === GPS y recorrido ===
+// ------ GPS y recorrido ------
 function onLocation(pos) {
   const lat = pos.coords.latitude, lng = pos.coords.longitude;
   const accuracy = pos.coords.accuracy || 20;
@@ -440,19 +533,191 @@ function startTimer() {
   }, 1000);
 }
 
-// ==== RESTO DEL CÓDIGO (botones, stats, laps, charts, compartir, exportar, navegación, etc) ====
+// ------ RUN BUTTONS ------
+document.getElementById('startBtn').onclick = function() {
+  if (started) return;
+  started = true; paused = false; state.startTime = Date.now(); state.elapsed = 0;
+  state.positions = []; state.distances = []; state.times = []; state.elevations = []; state.speeds = [];
+  state.laps = []; state.elevGain = 0; state.elevLoss = 0; kmVoiceNext = 1; state.lastElev = 0; state.lastVoiceKm = 0;
+  pathPolyline.setLatLngs([]); if (userMarker) map.removeLayer(userMarker), userMarker = null; if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
+  updateStats(); updateLaps(); updateCharts(); updateNextTurn("", false);
+  this.disabled = true; document.getElementById('pauseBtn').disabled = false; document.getElementById('lapBtn').disabled = false; document.getElementById('resetBtn').disabled = false;
+  if (navigator.geolocation) { watchId = navigator.geolocation.watchPosition(onLocation, handleError, {enableHighAccuracy: true, maximumAge: 1000, timeout:10000}); }
+  else { showQuickModal("Tu navegador no soporta geolocalización."); }
+  startTimer();
+  if(voiceOn) speak('Comenzando entrenamiento. ¡Vamos!');
+};
+document.getElementById('pauseBtn').onclick = function() {
+  if (!started) return;
+  paused = !paused;
+  if (paused) {
+    this.textContent = '⏵ Seguir';
+    if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    if(voiceOn) speak('Pausa. Puedes descansar.');
+    updateNextTurn("", false);
+  } else {
+    this.textContent = '⏸ Pausa';
+    if (navigator.geolocation) { watchId = navigator.geolocation.watchPosition(onLocation, handleError, {enableHighAccuracy: true, maximumAge: 1000, timeout:10000}); }
+    state.startTime = Date.now() - state.elapsed*1000;
+    startTimer();
+    if(voiceOn) speak('Reanudando. ¡Ánimo!');
+  }
+};
+document.getElementById('lapBtn').onclick = function() {
+  if (!started) return;
+  const lastDist = state.distances.length>0 ? state.distances[state.distances.length-1] : 0;
+  const lastTime = state.times.length>0 ? state.times[state.times.length-1] : 0;
+  state.laps.push({dist: lastDist/1000, time: lastTime});
+  updateLaps();
+  if(voiceOn) speak(`Parcial ${state.laps.length}: ${formatTime(lastTime)} y ${lastDist/1000} kilómetros.`);
+};
+document.getElementById('resetBtn').onclick = function() {
+  started = false; paused = false; if (timerInterval) clearInterval(timerInterval), timerInterval=null;
+  if (watchId!==null) navigator.geolocation.clearWatch(watchId), watchId=null;
+  state.positions = []; state.distances = []; state.times = []; state.elevations = []; state.laps = []; state.speeds = [];
+  state.elapsed = 0; state.elevGain = 0; state.elevLoss = 0; kmVoiceNext = 1; state.lastElev = 0; state.lastVoiceKm = 0;
+  pathPolyline.setLatLngs([]); if (userMarker) map.removeLayer(userMarker), userMarker = null; if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
+  updateStats(); updateLaps(); updateCharts(); updateNextTurn("", false);
+  document.getElementById('startBtn').disabled = false; document.getElementById('pauseBtn').disabled = true; document.getElementById('lapBtn').disabled = true; document.getElementById('resetBtn').disabled = true; document.getElementById('pauseBtn').textContent = '⏸ Pausa';
+  if(voiceOn) speak('Entrenamiento reseteado. Listo para un nuevo desafío.');
+};
+document.getElementById('voiceBtn').onclick = function() {
+  voiceOn = !voiceOn;
+  this.textContent = voiceOn ? '🔊 Voz' : '🔇 Voz';
+  if (voiceOn) speak('Voz activada');
+  else window.speechSynthesis.cancel();
+};
+document.getElementById('routeDrawBtn').onclick = function() { enableRouteDrawMode(); };
+document.getElementById('routeAutoBtn').onclick = function() { enableRouteAutoMode(); };
 
-/* ...todo el código de botones, stats, laps, charts y navegación del ejemplo anterior, igual... */
+// ------ COMPARTIR Y EXPORTAR ------
+document.getElementById('shareBtn').onclick = function() {
+  const lastDist = state.distances.length>0 ? state.distances[state.distances.length-1] : 0;
+  const lastTime = state.times.length>0 ? state.times[state.times.length-1] : 0;
+  const msg = `🚀 FLOKOOB\n${formatTime(lastTime)}\n${(lastDist/1000).toFixed(2)} km\nRitmo: ${calcPace(lastDist/1000,lastTime)}\n¡Mirá mi recorrido!`;
+  if(navigator.share) {
+    navigator.share({text:msg,url:location.href});
+  } else {
+    showModal(msg);
+  }
+};
+document.getElementById('exportBtn').onclick = function() {
+  let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="FLOKOOB"><trk><name>Actividad FLOKOOB</name><trkseg>`;
+  state.positions.forEach((pt,i)=>{
+    gpx+=`<trkpt lat="${pt.lat}" lon="${pt.lng}"><ele>${state.elevations[i]||0}</ele><time>${new Date(state.startTime+i*1000).toISOString()}</time></trkpt>`;
+  });
+  gpx+=`</trkseg></trk></gpx>`;
+  const blob = new Blob([gpx],{type:"application/gpx+xml"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'actividad_flokoob.gpx';
+  a.click();
+};
+// ------ HISTORIAL ------
+function saveActivityToHistory() {
+  if (state.positions.length < 5) return;
+  let history = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+  history.unshift({
+    date: new Date().toISOString(),
+    dist: state.distances[state.distances.length-1]/1000,
+    time: state.times[state.times.length-1],
+    elev: state.elevGain,
+    route: state.positions,
+    laps: state.laps
+  });
+  history = history.slice(0, 30); // máximo 30 actividades
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+}
+function loadHistory() {
+  const history = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+  const ul = document.getElementById('historyList');
+  ul.innerHTML = '';
+  if (history.length === 0) {
+    ul.innerHTML = '<li style="color:#888">No hay actividades registradas aún.</li>';
+    return;
+  }
+  history.forEach((item,i) => {
+    ul.innerHTML += `<li>
+      <b>${(item.dist||0).toFixed(2)} km</b> - <span>${formatTime(item.time)}</span>
+      <br><small>${(new Date(item.date)).toLocaleDateString()}<br>Elev: ${Math.round(item.elev)} m</small>
+      <button onclick="window.loadHistoryActivity(${i})" class="btn btn-secondary" style="font-size:0.9em;margin-top:4px;">Ver</button>
+      </li>`;
+  });
+}
+window.loadHistoryActivity = function(idx) {
+  const history = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+  const item = history[idx];
+  if (!item) return;
+  showSection('runSection');
+  setActiveNav('navRun');
+  pathPolyline.setLatLngs(item.route);
+  map.fitBounds(item.route);
+  showQuickModal("Recorrido de actividad cargado.");
+};
 
-// Por brevedad se omite la repetición, pero el archivo debe incluir TODO el código de entrenamiento, historial, logros, compartir, GPX, voz, etc, que ya venías usando previamente, combinando lo anterior + lo nuevo aquí mostrado.
+// ------ LOGROS ------
+function calcAchievements() {
+  const history = JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+  let totalKm = 0, days = {}, maxKm = 0, maxDistDay = "";
+  history.forEach(act=>{
+    totalKm += act.dist||0;
+    const day = (new Date(act.date)).toLocaleDateString();
+    days[day] = (days[day]||0)+(act.dist||0);
+    if (days[day]>maxKm) {maxKm = days[day]; maxDistDay = day;}
+  });
+  return {
+    totalKm: totalKm,
+    totalRuns: history.length,
+    maxKm: maxKm,
+    maxDistDay: maxDistDay
+  };
+}
+function showAchievements() {
+  const ach = calcAchievements();
+  document.getElementById('achievementsContent').innerHTML = `
+    <div><b>Total Km:</b> <span style="color:#50e3a4;">${ach.totalKm.toFixed(2)} km</span></div>
+    <div><b>Carreras guardadas:</b> ${ach.totalRuns}</div>
+    <div><b>Kms en un día:</b> ${ach.maxKm.toFixed(2)} (${ach.maxDistDay})</div>
+    <hr>
+    <div>¡Sigue sumando logros y kilómetros!</div>
+  `;
+}
 
-// Inicia la app
+// ------ NAVEGACIÓN ENTRE SECCIONES ------
+document.getElementById('navRun').onclick = ()=>{ showSection('runSection'); setActiveNav('navRun'); };
+document.getElementById('navHistory').onclick = ()=>{ showSection('historySection'); setActiveNav('navHistory'); loadHistory(); };
+document.getElementById('navAchievements').onclick = ()=>{ showSection('achievementsSection'); setActiveNav('navAchievements'); showAchievements(); };
+document.getElementById('navSettings').onclick = ()=>{ showSection('settingsSection'); setActiveNav('navSettings'); };
+
+// ------ AJUSTES ------
+document.getElementById('darkModeToggle').onchange = function() {
+  document.body.style.background = this.checked ? "#101114":"";
+};
+document.getElementById('liveShareToggle').onchange = function() {
+  showQuickModal("Función próximamente.");
+};
+document.getElementById('hrmToggle').onchange = function() {
+  showQuickModal("Sensor de pulso próximamente.");
+};
+document.getElementById('sosContact').onblur = function() {
+  localStorage.setItem('flokoob_sos', this.value);
+};
+
+// ------ INICIO ------
 window.onload = function() {
   initMap();
-  setTimeout(()=>map.invalidateSize(),200);
-  chartPace = new Chart(document.getElementById('paceChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Min/Km',data: [],borderColor: '#50e3a4',backgroundColor: 'rgba(80,227,164,0.12)',tension: 0.35,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#50e3a4',grid: {color: '#232323'},ticks: { color: "#50e3a4"}}}}});
-  chartElev = new Chart(document.getElementById('elevChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Elevación',data: [],borderColor: '#f4d800',backgroundColor: 'rgba(244,216,0,0.13)',tension: 0.3,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: false,color: '#f4d800',grid: {color: '#232323'},ticks: { color: "#f4d800"}}}}});
-  updateStats(); updateLaps(); updateCharts();
-  showSection("runSection"); setActiveNav("navRun");
   askLocationPermissionAndTrack();
+  updateStats();
+  updateLaps();
+  updateCharts();
+  // restaurar sos
+  document.getElementById('sosContact').value = localStorage.getItem('flokoob_sos')||"";
+  // UI botones
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('pauseBtn').disabled = true;
+  document.getElementById('lapBtn').disabled = true;
+  document.getElementById('resetBtn').disabled = true;
+  showSection('runSection');
+  setActiveNav('navRun');
 };
+function handleError(e) { showQuickModal("Error de GPS: "+e.message); }
