@@ -1,4 +1,4 @@
-// FLOKOOB - Móvil, profesional, UI mejorada, estadísticas reales y rutas claras
+// FLOKOOB - UI limpia, quita puntos, cancela recorridos, rutas y progreso en km/restante
 
 let map, userMarker, accuracyCircle, pathPolyline, chartPace, chartElev;
 let routePolyline, routeMarkers = [];
@@ -23,13 +23,15 @@ const state = {
   lastVoiceKm: 0,
   route: [],
   autoRoute: [],
+  routeTotalKm: 0,
+  routeRemainingKm: 0,
 };
 
 function showModal(text) {
   document.getElementById('modalText').innerHTML = text;
   document.getElementById('modalOverlay').style.display = 'flex';
 }
-function showQuickModal(text, ms=2000) {
+function showQuickModal(text, ms=1900) {
   const qm = document.getElementById('quickModal');
   document.getElementById('quickModalText').innerText = text;
   qm.style.display = 'block';
@@ -126,9 +128,8 @@ function updateNextTurn(text, show) {
   else { section.style.display = 'none'; }
 }
 function showSection(secId) {
-  ["runSection","historySection","achievementsSection","settingsSection"].forEach(id=>{
-    document.getElementById(id).style.display = id===secId?"block":"none";
-  });
+  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
+  document.getElementById(secId).classList.add('active');
 }
 function setActiveNav(navId) {
   Array.from(document.querySelectorAll('.nav-btn')).forEach(btn=>btn.classList.remove('active'));
@@ -145,7 +146,6 @@ function initMap() {
     dragging: true,
     tap: false
   });
-  // Satélite por defecto
   const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19});
   const dark = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {maxZoom: 19});
@@ -156,15 +156,12 @@ function initMap() {
   };
   satellite.addTo(map);
   L.control.layers(baseMaps, null, {position:'topright'}).addTo(map);
-  pathPolyline = L.polyline([], {color:'#ffd600', weight:7, opacity:0.93}).addTo(map);
+  pathPolyline = L.polyline([], {color:'#00e496', weight:6, opacity:0.93}).addTo(map);
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
 
 function askLocationPermissionAndTrack() {
-  if (!navigator.geolocation) {
-    showModal("Tu navegador no soporta geolocalización.");
-    return;
-  }
+  if (!navigator.geolocation) { showModal("Tu navegador no soporta geolocalización."); return; }
   navigator.geolocation.getCurrentPosition(function(pos){
     realCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
     map.setView(realCoords, 17, {animate:true});
@@ -191,26 +188,65 @@ function updateUserMarker(coord, accuracy=20) {
     userMarker = L.marker(coord, {
       icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
     }).addTo(map);
-    accuracyCircle = L.circle(coord, {color: "#ffd600aa",fillColor: "#ffd60033",fillOpacity: 0.5,radius: accuracy}).addTo(map);
+    accuracyCircle = L.circle(coord, {color: "#00e49699",fillColor: "#00e49655",fillOpacity: 0.4,radius: accuracy}).addTo(map);
   }
 }
 
-// ========== RUTAS MANUAL/AUTOMÁTICAS ==========
+// ========== RUTA MANUAL: QUITAR PUNTOS Y CANCELAR ==========
+function renderRoutePointsPanel() {
+  const panel = document.getElementById('routePointsPanel');
+  if (!routeMode || state.route.length === 0) { panel.innerHTML = ""; panel.style.display = "none"; return; }
+  panel.style.display = "flex";
+  panel.innerHTML = state.route.map((pt, i) =>
+    `<div class="route-point-chip">#${i+1}
+      <button class="remove-point" title="Quitar punto" onclick="window.removeManualRoutePoint(${i})">✕</button>
+    </div>`
+  ).join('');
+}
+window.removeManualRoutePoint = function(idx) {
+  state.route.splice(idx, 1);
+  drawRoute();
+  renderRoutePointsPanel();
+  // Redibujar info
+  if (state.route.length > 1) {
+    let dist = 0;
+    for(let i=1;i<state.route.length;i++)
+      dist += calcDistance(state.route[i-1],state.route[i]);
+    document.getElementById("floatingRouteInfo").innerHTML =
+      `<span>Distancia: ${(dist/1000).toFixed(2)} km</span>`;
+    document.getElementById("floatingRouteInfo").style.display = "block";
+  } else {
+    document.getElementById("floatingRouteInfo").style.display = "none";
+  }
+};
+
+document.getElementById("clearRouteBtn").onclick = function() {
+  state.route = [];
+  drawRoute();
+  renderRoutePointsPanel();
+  document.getElementById("floatingRouteInfo").style.display = "none";
+  showQuickModal("Recorrido cancelado.");
+};
 function enableRouteDrawMode() {
   routeMode = true;
   document.getElementById('routeDrawBtn').disabled = true;
-  showQuickModal('Haz clic en el mapa para marcar el recorrido.');
+  document.getElementById('clearRouteBtn').style.display = "inline-block";
+  showQuickModal('Toca en el mapa para marcar el recorrido.');
   map.on('click', addRoutePoint);
+  renderRoutePointsPanel();
 }
 function disableRouteDrawMode() {
   routeMode = false;
   document.getElementById('routeDrawBtn').disabled = false;
+  document.getElementById('clearRouteBtn').style.display = "none";
   map.off('click', addRoutePoint);
+  renderRoutePointsPanel();
 }
 function addRoutePoint(e) {
   const latlng = e.latlng;
   state.route.push({lat: latlng.lat, lng: latlng.lng});
   drawRoute();
+  renderRoutePointsPanel();
   if (state.route.length > 1) {
     let dist = 0;
     for(let i=1;i<state.route.length;i++)
@@ -220,7 +256,8 @@ function addRoutePoint(e) {
       .then(r=>r.json())
       .then(data=>{
         document.getElementById("floatingRouteInfo").innerHTML =
-          `<span>Distancia: ${(dist/1000).toFixed(2)} km<br><span style="font-size:0.98em;">Última calle: ${data.address.road || data.display_name || "?"}</span></span>`;
+          `<span>Distancia: ${(dist/1000).toFixed(2)} km<br>
+          <span style="font-size:0.98em;">Última calle: ${data.address.road || data.display_name || "?"}</span></span>`;
         document.getElementById("floatingRouteInfo").style.display = "block";
       });
   }
@@ -229,6 +266,10 @@ function drawRoute() {
   routePolyline.setLatLngs(state.route);
   routeMarkers.forEach(m=>map.removeLayer(m));
   routeMarkers = [];
+  if(state.route.length === 0) {
+    document.getElementById("floatingRouteInfo").style.display = "none";
+    return;
+  }
   state.route.forEach((pt, i) => {
     const marker = L.marker(pt, {
       icon: L.divIcon({
@@ -243,17 +284,21 @@ function drawRoute() {
   });
 }
 
+// ========== RUTA AUTOMÁTICA: CANCELAR Y PROGRESO ==========
 function enableRouteAutoMode() {
   autoRouteMode = true;
   document.getElementById('routeAutoBtn').disabled = true;
   document.getElementById('routeInputs').style.display = 'block';
+  document.getElementById('clearRouteBtn').style.display = "inline-block";
   showQuickModal('Indica largada y llegada (o usa tu ubicación)');
 }
 function disableRouteAutoMode() {
   autoRouteMode = false;
   document.getElementById('routeAutoBtn').disabled = false;
   document.getElementById('routeInputs').style.display = 'none';
+  document.getElementById('clearRouteBtn').style.display = "none";
 }
+
 function geocode(address, cb) {
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
     .then(r=>r.json()).then(data=>{
@@ -274,7 +319,6 @@ document.getElementById('findRouteBtn').onclick = function() {
     geocode(endAdr, ptB=>{
       if(!ptB) return showQuickModal("No se encontró llegada.");
       getRouteWithRoutingMachine(ptA, ptB);
-      document.getElementById("routeAnalysis").style.display = "none";
     });
   });
 };
@@ -286,6 +330,23 @@ document.getElementById('useCurrentLocationBtn').onclick = function() {
   }
   document.getElementById('startPoint').value = `${realCoords.lat},${realCoords.lng}`;
   showQuickModal("Usando tu ubicación como largada.");
+};
+document.getElementById("clearRouteBtn").onclick = function() {
+  if (routeMode) {
+    state.route = [];
+    drawRoute();
+    renderRoutePointsPanel();
+    document.getElementById("floatingRouteInfo").style.display = "none";
+    disableRouteDrawMode();
+  }
+  if (autoRouteMode) {
+    state.autoRoute = [];
+    drawAutoRoute();
+    document.getElementById("floatingRouteInfo").style.display = "none";
+    disableRouteAutoMode();
+  }
+  hideLiveRouteProgress();
+  showQuickModal("Recorrido cancelado.");
 };
 function getRouteWithRoutingMachine(startPt, endPt) {
   if(routingControl) map.removeControl(routingControl);
@@ -302,14 +363,17 @@ function getRouteWithRoutingMachine(startPt, endPt) {
     const route = e.routes[0];
     const coordinates = route.coordinates.map(c=>({lat:c.lat, lng:c.lng}));
     state.autoRoute = coordinates;
+    state.routeTotalKm = route.summary.totalDistance/1000;
+    state.routeRemainingKm = state.routeTotalKm;
     drawAutoRoute();
     disableRouteAutoMode();
-    let dist = route.summary.totalDistance/1000;
+    let dist = state.routeTotalKm;
     let timeMin = route.summary.totalTime/60;
     let calleTexto = route.instructions.map(i=>i.text.replace(/(en )?la carretera|(en )?la carretera/g,'').replace(/Continúe/g,'Seguí')).join("<br>");
     showModal(
       `<b>Distancia:</b> ${dist.toFixed(2)} km<br><b>Tiempo estimado:</b> ${Math.round(timeMin)} min<br><b>Calle/indicaciones:</b><br>${calleTexto}`
     );
+    showLiveRouteProgress(dist, dist);
   });
   routingControl.on('routingerror', function(){ showQuickModal('No se pudo calcular la ruta.'); disableRouteAutoMode(); });
 }
@@ -324,44 +388,42 @@ function drawAutoRoute() {
   }
 }
 
-// ========== TURN DETECTION Y GPS ==========
-function getTurnInstruction(from, to) {
-  if (!from || !to) return "";
-  const dx = to.lng - from.lng; const dy = to.lat - from.lat;
-  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-  if (angle > 30) return "Dobla a la izquierda";
-  if (angle < -30) return "Dobla a la derecha";
-  return "Seguí recto";
+// ========== PROGRESO EN RUTA AUTOMÁTICA ==========
+function showLiveRouteProgress(totalKm, remainKm) {
+  state.routeTotalKm = totalKm;
+  state.routeRemainingKm = remainKm;
+  const div = document.getElementById("liveRouteProgress");
+  document.getElementById("liveRouteKm").innerText = remainKm.toFixed(2);
+  const percent = Math.max(0,100*(1-(remainKm/totalKm)));
+  document.getElementById("liveRoutePercent").innerText = Math.round(percent);
+  document.getElementById("liveRouteBar").style.width = percent + "%";
+  div.style.display = "block";
 }
-function checkUpcomingTurn(currentPos) {
-  let routeArr = state.autoRoute.length>0 ? state.autoRoute : state.route;
-  if (!routeArr || routeArr.length < 2 || nextTurnIndex >= routeArr.length-1) { updateNextTurn("", false); return; }
-  const nextPt = routeArr[nextTurnIndex+1];
-  const distToTurn = calcDistance(currentPos, nextPt);
-  if (distToTurn < 60 && distToTurn > 30) {
-    const from = routeArr[nextTurnIndex];
-    const to = routeArr[nextTurnIndex+1];
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${to.lat}&lon=${to.lng}`)
-    .then(r=>r.json())
-    .then(data=>{
-      const calle = data.address.road || data.display_name || "calle";
-      const instruction = getTurnInstruction(from, to);
-      updateNextTurn(`${instruction} en ${calle} (${Math.round(distToTurn)} m)`,true);
-    });
-  } else if (distToTurn <= 30) {
-    nextTurnIndex++;
-    updateNextTurn("", false);
-  } else {
-    updateNextTurn("", false);
+function hideLiveRouteProgress() {
+  document.getElementById("liveRouteProgress").style.display = "none";
+}
+function updateLiveRouteProgress(currentPos) {
+  if(!state.autoRoute || !state.autoRoute.length) return;
+  let minDist = Infinity;
+  let totalDist = 0;
+  let nearestIdx = 0;
+  for(let i=0;i<state.autoRoute.length;i++) {
+    let d = calcDistance(currentPos, state.autoRoute[i]);
+    if(d < minDist) { minDist = d; nearestIdx = i; }
   }
+  for(let i=nearestIdx;i<state.autoRoute.length-1;i++)
+    totalDist += calcDistance(state.autoRoute[i], state.autoRoute[i+1]);
+  let remainKm = totalDist/1000;
+  showLiveRouteProgress(state.routeTotalKm || remainKm, remainKm);
 }
-async function onLocation(pos) {
+
+// ========== GPS y recorrido ==========
+function onLocation(pos) {
   const lat = pos.coords.latitude, lng = pos.coords.longitude;
   const accuracy = pos.coords.accuracy || 20;
   const coord = {lat, lng};
-  let elev = pos.coords.altitude;
-  if (elev == null) elev = await getElevation(lat, lng);
-
+  let elev = null;
+  if (pos.coords.altitude !== null) elev = pos.coords.altitude;
   const now = Date.now();
   let addPoint = true;
   if (state.positions.length > 0) {
@@ -396,17 +458,15 @@ async function onLocation(pos) {
     }
     state.positions.push(coord);
     state.lastElev = elev;
-
     updateUserMarker(coord, accuracy);
     pathPolyline.setLatLngs(state.positions);
-
     if (state.positions.length===1 || state.positions.length%5===0)
       map.setView(coord, 16);
-
     updateStats();
     updateCharts();
-    checkUpcomingTurn(coord);
-
+    // Progreso live ruta auto
+    if(state.autoRoute.length) updateLiveRouteProgress(coord);
+    // No turn detection en este diseño
     const distKm = state.distances[state.distances.length-1]/1000;
     if (voiceOn && distKm >= kmVoiceNext) {
       speak(`Has recorrido ${kmVoiceNext} kilómetro${kmVoiceNext>1?'s':''}. Tiempo: ${formatTime(state.elapsed)}. Ritmo: ${calcPace(distKm,state.elapsed)} por kilómetro. ¡Sigue así!`);
@@ -517,8 +577,8 @@ function handleError(err) { showModal("No se pudo obtener tu ubicación.\nActiva
 window.onload = function() {
   initMap();
   setTimeout(()=>map.invalidateSize(),200);
-  chartPace = new Chart(document.getElementById('paceChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Min/Km',data: [],borderColor: '#ffd600',backgroundColor: 'rgba(255,214,0,0.10)',tension: 0.35,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}}});
-  chartElev = new Chart(document.getElementById('elevChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Elevación',data: [],borderColor: '#bba500',backgroundColor: 'rgba(255,214,0,0.08)',tension: 0.3,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: false,color: '#ffd600',grid: {color: '#333'},ticks: { color: "#ffd600"}}}}});
+  chartPace = new Chart(document.getElementById('paceChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Min/Km',data: [],borderColor: '#00e496',backgroundColor: 'rgba(0,228,150,0.10)',tension: 0.35,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: true,color: '#00e496',grid: {color: '#222'},ticks: { color: "#00e496"}}}}});
+  chartElev = new Chart(document.getElementById('elevChart').getContext('2d'), {type: 'line',data: {labels: [],datasets: [{label: 'Elevación',data: [],borderColor: '#f4d800',backgroundColor: 'rgba(244,216,0,0.11)',tension: 0.3,fill: true,pointRadius: 0}]},options: {responsive: true,plugins: {legend: {display:false}},scales: {x: {display:false},y: {beginAtZero: false,color: '#f4d800',grid: {color: '#222'},ticks: { color: "#f4d800"}}}}});
   updateStats(); updateLaps(); updateCharts();
   showSection("runSection"); setActiveNav("navRun");
   askLocationPermissionAndTrack();
