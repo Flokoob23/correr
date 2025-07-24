@@ -1,9 +1,10 @@
-// ========== FLOKOOB GPS APP PRO - RECORRIDOS Y GIROS ==========
+// FLOKOOB - GPS PRO, RUTAS POR TRAZADO Y AUTOMÁTICAS + DISEÑO RUNTASTIC
 
 let map, userMarker, accuracyCircle, pathPolyline;
 let chartPace, chartElev, chartSpeed;
 let routePolyline, routeMarkers = [];
-let routeMode = false;
+let routingControl = null;
+let routeMode = false, autoRouteMode = false;
 let watchId = null, started = false, paused = false, timerInterval = null, voiceOn = true;
 let kmVoiceNext = 1;
 let nextTurnIndex = 0;
@@ -15,15 +16,14 @@ const state = {
   speeds: [],
   laps: [],
   startTime: null,
-  elapsed: 0, // seconds
+  elapsed: 0,
   elevGain: 0,
   elevLoss: 0,
   lastElev: 0,
   lastVoiceKm: 0,
-  route: [] // puntos {lat,lng}
+  route: [],
+  autoRoute: []
 };
-
-// ----------- HELPERS -----------
 
 function formatTime(sec) {
   const h = Math.floor(sec/3600);
@@ -32,9 +32,7 @@ function formatTime(sec) {
   return (h>0?String(h).padStart(2,'0')+':':'') +
          String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
-
 function calcDistance(pos1, pos2) {
-  // Haversine
   const toRad = x => x * Math.PI / 180;
   const R = 6371e3;
   const dLat = toRad(pos2.lat - pos1.lat);
@@ -46,7 +44,6 @@ function calcDistance(pos1, pos2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
-
 function calcPace(distKm, sec) {
   if (distKm === 0) return '0:00';
   const pace = sec / distKm;
@@ -54,13 +51,11 @@ function calcPace(distKm, sec) {
   const secd = Math.round(pace%60);
   return `${min}:${String(secd).padStart(2,'0')}`;
 }
-
 function getSpeed(last, now, tdelta) {
   if (!last || !now || tdelta === 0) return 0;
   const d = calcDistance(last, now);
-  return (d/tdelta)*3.6; // m/s to km/h
+  return (d/tdelta)*3.6;
 }
-
 async function getElevation(lat, lng) {
   try {
     const url = `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`;
@@ -71,9 +66,6 @@ async function getElevation(lat, lng) {
     return null;
   }
 }
-
-// ----------- VOICE -----------
-
 function speak(text) {
   if (!voiceOn || !('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
@@ -82,9 +74,6 @@ function speak(text) {
   msg.rate = 1;
   window.speechSynthesis.speak(msg);
 }
-
-// ----------- UI UPDATES -----------
-
 function updateStats() {
   const dist = state.distances.length > 0 ? state.distances[state.distances.length-1] : 0;
   const distKm = dist / 1000;
@@ -96,7 +85,6 @@ function updateStats() {
   document.getElementById('elev').textContent = `${Math.round(state.elevGain)}↑ ${Math.round(state.elevLoss)}↓`;
   document.getElementById('current-elev').textContent = state.lastElev ? Math.round(state.lastElev) : '0';
 }
-
 function updateLaps() {
   const ul = document.getElementById('lapsList');
   ul.innerHTML = '';
@@ -108,18 +96,14 @@ function updateLaps() {
     });
   }
 }
-
 function updateCharts() {
   if (!chartPace || !chartElev || !chartSpeed) return;
   const labels = state.times.map(t=>formatTime(t));
-  // Ritmo
   const paces = state.distances.map((d,i)=>{
     const distKm = d/1000;
     return distKm>0 ? state.times[i]/distKm : 0;
   });
-  // Elevación
   const elevs = state.elevations.map(e=>e?e:0);
-  // Velocidad
   const speeds = state.speeds.map(v=>v);
 
   chartPace.data.labels = labels;
@@ -132,7 +116,6 @@ function updateCharts() {
   chartSpeed.data.datasets[0].data = speeds;
   chartSpeed.update('none');
 }
-
 function updateNextTurn(text, show) {
   const section = document.getElementById('nextTurn');
   const turnText = document.getElementById('turnText');
@@ -143,13 +126,13 @@ function updateNextTurn(text, show) {
     section.style.display = 'none';
   }
 }
-
-// ----------- MAP -----------
-
 function initMap() {
-  map = L.map('map', {zoomControl: false, attributionControl:false}).setView([0,0], 15);
-
-  // Capas
+  map = L.map('map', {
+    zoomControl: false,
+    attributionControl:false,
+    center: [-34.6037, -58.3816], // Buenos Aires
+    zoom: 14
+  });
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19});
   const dark = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {maxZoom: 19});
   const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
@@ -160,13 +143,9 @@ function initMap() {
   };
   dark.addTo(map);
   L.control.layers(baseMaps, null, {position:'topright'}).addTo(map);
-
   pathPolyline = L.polyline([], {color:'#ffd600', weight:7, opacity:0.93}).addTo(map);
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
-
-// ----------- USER MARKER -----------
-
 function updateUserMarker(coord, accuracy=20) {
   if (userMarker) {
     userMarker.setLatLng(coord);
@@ -186,38 +165,27 @@ function updateUserMarker(coord, accuracy=20) {
     }).addTo(map);
   }
 }
-
-// ----------- ROUTE CREATION -----------
-
-function enableRouteMode() {
+// ----------- ROUTE CREATION (DRAW) -----------
+function enableRouteDrawMode() {
   routeMode = true;
-  document.getElementById('routeBtn').disabled = true;
-  document.getElementById('saveRouteBtn').style.display = '';
-  document.getElementById('clearRouteBtn').style.display = '';
-  speak('Modo de creación de recorrido activado. Haz clic en el mapa para marcar los puntos.');
-  
+  document.getElementById('routeDrawBtn').disabled = true;
+  speak('Modo dibujo activado. Haz clic en el mapa para marcar tu recorrido.');
   map.on('click', addRoutePoint);
 }
-function disableRouteMode() {
+function disableRouteDrawMode() {
   routeMode = false;
-  document.getElementById('routeBtn').disabled = false;
-  document.getElementById('saveRouteBtn').style.display = 'none';
-  document.getElementById('clearRouteBtn').style.display = 'none';
+  document.getElementById('routeDrawBtn').disabled = false;
   map.off('click', addRoutePoint);
 }
-
 function addRoutePoint(e) {
   const latlng = e.latlng;
   state.route.push({lat: latlng.lat, lng: latlng.lng});
   drawRoute();
 }
-
 function drawRoute() {
   routePolyline.setLatLngs(state.route);
-  // Remove old markers
   routeMarkers.forEach(m=>map.removeLayer(m));
   routeMarkers = [];
-  // Draw numbered markers
   state.route.forEach((pt, i) => {
     const marker = L.marker(pt, {
       icon: L.divIcon({
@@ -231,22 +199,86 @@ function drawRoute() {
     routeMarkers.push(marker);
   });
 }
-
-function saveRoute() {
-  disableRouteMode();
-  speak('Recorrido guardado. Ya puedes iniciar tu actividad.');
+// ----------- ROUTE CREATION (AUTO) -----------
+function enableRouteAutoMode() {
+  autoRouteMode = true;
+  document.getElementById('routeAutoBtn').disabled = true;
+  document.getElementById('routeInputs').style.display = 'block';
+  speak('Ingresa la largada y la llegada para buscar una ruta.');
 }
-function clearRoute() {
-  state.route = [];
-  drawRoute();
+function disableRouteAutoMode() {
+  autoRouteMode = false;
+  document.getElementById('routeAutoBtn').disabled = false;
+  document.getElementById('routeInputs').style.display = 'none';
 }
+function geocode(address, cb) {
+  // Nominatim API
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+    .then(r=>r.json()).then(data=>{
+      if(data && data.length>0) {
+        cb({lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)});
+      } else {
+        cb(null);
+      }
+    }).catch(()=>cb(null));
+}
+function findAutoRoute() {
+  const startAdr = document.getElementById('startPoint').value;
+  const endAdr = document.getElementById('endPoint').value;
+  if(!startAdr||!endAdr) {
+    alert("Completa ambos puntos.");
+    return;
+  }
+  geocode(startAdr, startPt=>{
+    if(!startPt) return alert("No se encontró largada.");
+    geocode(endAdr, endPt=>{
+      if(!endPt) return alert("No se encontró llegada.");
+      getRouteWithRoutingMachine(startPt, endPt);
+    });
+  });
+}
+function getRouteWithRoutingMachine(startPt, endPt) {
+  if(routingControl) map.removeControl(routingControl);
+  routingControl = L.Routing.control({
+    waypoints: [L.latLng(startPt.lat, startPt.lng), L.latLng(endPt.lat, endPt.lng)],
+    lineOptions: {styles: [{color:'#ff8000',weight:6,opacity:0.85}]},
+    addWaypoints: false,
+    draggableWaypoints: false,
+    fitSelectedRoutes: true,
+    show: false,
+    router: L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'})
+  }).addTo(map);
 
+  routingControl.on('routesfound', function(e){
+    const route = e.routes[0];
+    const coordinates = route.coordinates.map(c=>({lat:c.lat, lng:c.lng}));
+    state.autoRoute = coordinates;
+    drawAutoRoute();
+    disableRouteAutoMode();
+    speak('Ruta encontrada y marcada en el mapa. Ya puedes iniciar tu entrenamiento.');
+  });
+  routingControl.on('routingerror', function(){
+    alert('No se pudo calcular la ruta.');
+    disableRouteAutoMode();
+  });
+}
+function drawAutoRoute() {
+  routePolyline.setLatLngs(state.autoRoute);
+  routeMarkers.forEach(m=>map.removeLayer(m));
+  routeMarkers = [];
+  if(state.autoRoute.length>0) {
+    const markerStart = L.marker(state.autoRoute[0], {
+      icon: L.divIcon({className:'route-marker',html:`<div style="background:#ffd600;color:#111;font-weight:bold;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:2px solid #fff800;">🏁</div>`,iconSize:[32,32],iconAnchor:[16,16]})
+    }).addTo(map);
+    const markerEnd = L.marker(state.autoRoute[state.autoRoute.length-1], {
+      icon: L.divIcon({className:'route-marker',html:`<div style="background:#ff8000;color:#fff;font-weight:bold;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:2px solid #fff800;">🏅</div>`,iconSize:[32,32],iconAnchor:[16,16]})
+    }).addTo(map);
+    routeMarkers.push(markerStart, markerEnd);
+  }
+}
 // ----------- TURN DETECTION -----------
-
 function getTurnInstruction(from, to) {
-  // Simple "doblar" indicación (izquierda/derecha/seguir) usando ángulo
   if (!from || !to) return "";
-  // Calcula ángulo entre puntos (simplificado)
   const dx = to.lng - from.lng;
   const dy = to.lat - from.lat;
   const angle = Math.atan2(dy, dx) * 180 / Math.PI;
@@ -254,33 +286,28 @@ function getTurnInstruction(from, to) {
   if (angle < -30) return "Dobla a la derecha";
   return "Sigue recto";
 }
-
 function checkUpcomingTurn(currentPos) {
-  // Si hay una ruta creada y estamos cerca del siguiente punto, avisar
-  if (!state.route || state.route.length < 2 || nextTurnIndex >= state.route.length-1) {
+  let routeArr = state.autoRoute.length>0 ? state.autoRoute : state.route;
+  if (!routeArr || routeArr.length < 2 || nextTurnIndex >= routeArr.length-1) {
     updateNextTurn("", false);
     return;
   }
-  const nextPt = state.route[nextTurnIndex+1];
+  const nextPt = routeArr[nextTurnIndex+1];
   const distToTurn = calcDistance(currentPos, nextPt);
   if (distToTurn < 60 && distToTurn > 30) {
-    // 50m antes del giro, avisar
-    const from = state.route[nextTurnIndex];
-    const to = state.route[nextTurnIndex+1];
+    const from = routeArr[nextTurnIndex];
+    const to = routeArr[nextTurnIndex+1];
     const instruction = getTurnInstruction(from, to);
     updateNextTurn(`${instruction} en ${Math.round(distToTurn)} metros`);
     if(voiceOn) speak(`${instruction} en ${Math.round(distToTurn)} metros`);
   } else if (distToTurn <= 30) {
-    // Ya llegó al punto, pasar al siguiente
     nextTurnIndex++;
     updateNextTurn("", false);
   } else {
     updateNextTurn("", false);
   }
 }
-
 // ----------- GPS -----------
-
 async function onLocation(pos) {
   const lat = pos.coords.latitude, lng = pos.coords.longitude;
   const accuracy = pos.coords.accuracy || 20;
@@ -293,11 +320,9 @@ async function onLocation(pos) {
   if (state.positions.length > 0) {
     const lastPos = state.positions[state.positions.length-1];
     const lastTime = state.times[state.times.length-1];
-    const dist = calcDistance(lastPos, coord); // metros
-    const timeDelta = (Math.round((now-state.startTime)/1000)) - lastTime; // segundos
-    const vel = dist / (timeDelta > 0 ? timeDelta : 1); // m/s
-
-    // Filtro de saltos anómalos
+    const dist = calcDistance(lastPos, coord);
+    const timeDelta = (Math.round((now-state.startTime)/1000)) - lastTime;
+    const vel = dist / (timeDelta > 0 ? timeDelta : 1);
     if (dist > 30 && vel > 6) {
       addPoint = false;
     }
@@ -309,13 +334,11 @@ async function onLocation(pos) {
       delta = calcDistance(state.positions[state.positions.length-1], coord);
       state.distances.push(state.distances[state.distances.length-1] + delta);
       state.times.push(Math.round((now - state.startTime)/1000));
-      // Elevation gain/loss
       const prevElev = state.elevations[state.elevations.length-1];
       if (elev !== null && prevElev !== null) {
         if (elev > prevElev) state.elevGain += elev-prevElev;
         else state.elevLoss += prevElev-elev;
       }
-      // Speed (km/h)
       tdelta = (state.times.length>1) ? (state.times[state.times.length-1]-state.times[state.times.length-2]) : 1;
       spd = getSpeed(state.positions[state.positions.length-1], coord, tdelta);
       state.speeds.push(spd);
@@ -329,21 +352,16 @@ async function onLocation(pos) {
     state.positions.push(coord);
     state.lastElev = elev;
 
-    // Update marker & path
     updateUserMarker(coord, accuracy);
     pathPolyline.setLatLngs(state.positions);
 
-    // Center map on move
     if (state.positions.length===1 || state.positions.length%5===0)
       map.setView(coord, 16);
 
     updateStats();
     updateCharts();
-
-    // Turn guidance
     checkUpcomingTurn(coord);
 
-    // ------ AVISOS DE VOZ ------
     const distKm = state.distances[state.distances.length-1]/1000;
     if (voiceOn && distKm >= kmVoiceNext) {
       speak(`Has recorrido ${kmVoiceNext} kilómetro${kmVoiceNext>1?'s':''}. Tiempo: ${formatTime(state.elapsed)}. Ritmo: ${calcPace(distKm,state.elapsed)} por kilómetro. ¡Sigue así!`);
@@ -352,9 +370,7 @@ async function onLocation(pos) {
     }
   }
 }
-
 // ----------- TIMER -----------
-
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(()=>{
@@ -364,9 +380,7 @@ function startTimer() {
     }
   }, 1000);
 }
-
 // ----------- BOTONES -----------
-
 document.getElementById('startBtn').onclick = function() {
   if (started) return;
   started = true;
@@ -385,7 +399,7 @@ document.getElementById('startBtn').onclick = function() {
   state.lastElev = 0;
   state.lastVoiceKm = 0;
   nextTurnIndex = 0;
-  if (pathPolyline) pathPolyline.setLatLngs([]);
+  pathPolyline.setLatLngs([]);
   if (userMarker) map.removeLayer(userMarker), userMarker = null;
   if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
   updateStats();
@@ -396,7 +410,7 @@ document.getElementById('startBtn').onclick = function() {
   document.getElementById('pauseBtn').disabled = false;
   document.getElementById('lapBtn').disabled = false;
   document.getElementById('resetBtn').disabled = false;
-  // GPS
+
   if (navigator.geolocation) {
     watchId = navigator.geolocation.watchPosition(onLocation, handleError, {
       enableHighAccuracy: true, maximumAge: 1000, timeout:10000
@@ -407,7 +421,6 @@ document.getElementById('startBtn').onclick = function() {
   startTimer();
   if(voiceOn) speak('Comenzando entrenamiento. ¡Vamos!');
 };
-
 document.getElementById('pauseBtn').onclick = function() {
   if (!started) return;
   paused = !paused;
@@ -431,7 +444,6 @@ document.getElementById('pauseBtn').onclick = function() {
     if(voiceOn) speak('Reanudando. ¡Ánimo!');
   }
 };
-
 document.getElementById('lapBtn').onclick = function() {
   if (!started) return;
   const lastDist = state.distances.length>0 ? state.distances[state.distances.length-1] : 0;
@@ -440,7 +452,6 @@ document.getElementById('lapBtn').onclick = function() {
   updateLaps();
   if(voiceOn) speak(`Parcial ${state.laps.length}: ${formatTime(lastTime)} y ${lastDist/1000} kilómetros.`);
 };
-
 document.getElementById('resetBtn').onclick = function() {
   started = false;
   paused = false;
@@ -459,7 +470,7 @@ document.getElementById('resetBtn').onclick = function() {
   state.lastElev = 0;
   state.lastVoiceKm = 0;
   nextTurnIndex = 0;
-  if (pathPolyline) pathPolyline.setLatLngs([]);
+  pathPolyline.setLatLngs([]);
   if (userMarker) map.removeLayer(userMarker), userMarker = null;
   if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
   updateStats();
@@ -473,34 +484,29 @@ document.getElementById('resetBtn').onclick = function() {
   document.getElementById('pauseBtn').textContent = 'Pausa';
   if(voiceOn) speak('Entrenamiento reseteado. Listo para un nuevo desafío.');
 };
-
 document.getElementById('voiceBtn').onclick = function() {
   voiceOn = !voiceOn;
   this.textContent = voiceOn ? '🔊 Voz' : '🔇 Voz';
   if (voiceOn) speak('Voz activada');
   else window.speechSynthesis.cancel();
 };
-
-document.getElementById('routeBtn').onclick = function() {
-  enableRouteMode();
+document.getElementById('routeDrawBtn').onclick = function() {
+  enableRouteDrawMode();
 };
-document.getElementById('saveRouteBtn').onclick = function() {
-  saveRoute();
+document.getElementById('routeAutoBtn').onclick = function() {
+  enableRouteAutoMode();
 };
-document.getElementById('clearRouteBtn').onclick = function() {
-  clearRoute();
+document.getElementById('findRouteBtn').onclick = function() {
+  findAutoRoute();
 };
-
 // ----------- ERROR -----------
-
 function handleError(err) {
   alert("No se pudo obtener tu ubicación.\nActiva el GPS y otorga permisos.\n\n"+err.message);
 }
-
 // ----------- INIT -----------
-
 window.onload = function() {
   initMap();
+  setTimeout(()=>map.invalidateSize(),200);
   // Chart.js para 3 gráficos
   const paceCtx = document.getElementById('paceChart').getContext('2d');
   chartPace = new Chart(paceCtx, {
