@@ -11,7 +11,7 @@
   <div class="app-shell">
     <header class="header">
       <div class="brand"><span class="brand-main">FLOKOOB</span><span class="brand-dot">•</span></div>
-      <div class="subtitle">Cronómetro de bolsillo</div>
+      <div class="subtitle">Running Pro Tracker</div>
     </header>
     <nav class="nav">
       <button id="navRun" class="nav-btn active" title="Entrenar"><i class="icon icon-run"></i></button>
@@ -32,7 +32,7 @@
           <button id="routeDrawBtn" class="btn btn-tertiary">✏️ Ruta Manual</button>
           <button id="routeAutoBtn" class="btn btn-tertiary">🗺️ Ruta Automática</button>
           <button id="locateBtn" class="btn btn-tertiary">📍 Ubicación</button>
-          <button id="clearRouteBtn" class="btn btn-tertiary danger" title="Cancelar recorrido" style="display:none;">🗑 Cancelar</button>
+          <button id="clearRouteBtn" class="btn btn-tertiary danger" title="Borrar Recorrido" style="display:none;">🗑 Borrar Ruta</button>
         </section>
         <section id="mapWrapper" class="map-section">
           <div id="map"></div>
@@ -64,6 +64,12 @@
           <div class="progress-bar">
             <div id="liveRouteBar" class="progress-bar-inner"></div>
           </div>
+        </section>
+        <section class="athlete-tools">
+          <button id="hydrationBtn" class="btn btn-tertiary" title="Recordatorio de hidratación">💧 Hidratación</button>
+          <button id="intervalBtn" class="btn btn-tertiary" title="Intervalos">⏱ Intervalos</button>
+          <button id="goalPaceBtn" class="btn btn-tertiary" title="Meta de ritmo">🎯 Meta Ritmo</button>
+          <button id="setGoalBtn" class="btn btn-tertiary" title="Fijar objetivo">🏅 Objetivo</button>
         </section>
         <section id="charts" class="charts-section">
           <div class="chart-block">
@@ -98,7 +104,7 @@
           </label>
           <label>
             <input type="checkbox" id="hrmToggle">
-            Sensores de pulso (experimental)
+            Sensor de pulso (experimental)
           </label>
           <label>
             Emergencia SOS: <input type="text" id="sosContact" placeholder="Email o teléfono">
