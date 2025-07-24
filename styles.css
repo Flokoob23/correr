@@ -1,8 +1,9 @@
 :root {
   --main-bg: #111111;
   --accent: #ffd600;
+  --accent-dark: #bba500;
   --text: #fff;
-  --secondary: #222;
+  --secondary: #191919;
   --muted: #888;
 }
 
@@ -16,10 +17,10 @@ body, html {
 }
 
 .container {
-  max-width: 480px;
+  max-width: 520px;
   margin: auto;
   background: var(--secondary);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 40px #000a;
   min-height: 100vh;
@@ -29,44 +30,56 @@ body, html {
 
 header {
   text-align: center;
-  padding: 16px 0 8px 0;
+  padding: 18px 0 10px 0;
   background: var(--main-bg);
+  border-bottom: 2px solid var(--accent);
 }
 
 h1 {
   color: var(--accent);
   margin: 0;
-  font-size: 2.1rem;
+  font-size: 2.3rem;
   letter-spacing: 2px;
+  font-weight: 900;
+  text-shadow: 0 2px 8px #000a;
 }
 
 h2 {
   margin: 0 0 4px 0;
   color: var(--muted);
   font-size: 1.1rem;
-  font-weight: 300;
+  font-weight: 400;
+  letter-spacing: 1px;
 }
 
 #stats {
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: var(--main-bg);
-  padding: 8px 0;
+  background: var(--secondary);
+  padding: 10px 0 6px 0;
   border-bottom: 1px solid #333;
+  flex-wrap: wrap;
 }
 
 .stat {
   text-align: center;
-  flex: 1;
   color: var(--text);
+  flex: 1;
+  min-width: 72px;
+  margin: 0 2px;
+  padding-bottom: 2px;
 }
 
 .stat span {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   color: var(--accent);
   font-weight: bold;
   display: block;
+}
+
+.stat.big span {
+  font-size: 1.6rem;
 }
 
 .stat small {
@@ -77,28 +90,31 @@ h2 {
 #controls {
   display: flex;
   justify-content: space-around;
-  padding: 12px 0;
+  padding: 13px 0 10px 0;
   background: var(--main-bg);
   border-bottom: 1px solid #222;
+  flex-wrap: wrap;
 }
 
 .main-btn {
   background: var(--accent);
   color: #111;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 8px 18px;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: bold;
   cursor: pointer;
-  margin: 0 2px;
-  transition: background 0.15s;
+  margin: 0 2px 6px 2px;
+  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 10px #ffd60022;
 }
 
 .main-btn:disabled {
   background: #444;
   color: #aaa;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 #map {
@@ -107,16 +123,39 @@ h2 {
   margin: 0;
   background: #222;
   z-index: 1;
+  border-bottom: 2px solid var(--accent);
+}
+
+#charts {
+  padding: 0 18px 2px 18px;
+  background: var(--main-bg);
+}
+
+.chart-block {
+  margin: 14px 0 10px 0;
+  background: #181818;
+  border-radius: 8px;
+  padding: 7px 8px 12px 8px;
+  box-shadow: 0 1px 7px #ffd60022;
+}
+
+#paceChart, #elevChart, #speedChart {
+  width: 100% !important;
+  background: #161616;
+  border-radius: 6px;
+  margin-bottom: 2px;
 }
 
 #laps {
-  padding: 12px 18px 6px 18px;
+  padding: 7px 18px 7px 18px;
 }
 
 #laps h3, #charts h3 {
   color: var(--accent);
-  font-size: 1rem;
-  margin: 8px 0 6px 0;
+  font-size: 1.02rem;
+  margin: 8px 0 5px 0;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
 #lapsList {
@@ -126,31 +165,33 @@ h2 {
 }
 
 #lapsList li {
-  font-size: 0.95rem;
+  font-size: 0.97rem;
   color: var(--text);
   border-bottom: 1px solid #222;
   padding: 3px 0;
   margin: 0;
 }
 
-#charts {
-  padding: 0 18px 12px 18px;
-}
-
-#paceChart {
-  width: 100% !important;
-  background: #181818;
-  border-radius: 6px;
-  margin-bottom: 8px;
-}
-
 footer {
   text-align: center;
   color: var(--muted);
   padding: 12px 0 8px 0;
-  font-size: 0.85rem;
+  font-size: 0.93rem;
   background: var(--main-bg);
   border-top: 1px solid #222;
+}
+
+.leaflet-control-layers {
+  background: #222b !important;
+  color: var(--accent) !important;
+}
+
+.leaflet-popup-content {
+  color: #111;
+}
+
+.leaflet-marker-icon.gps-marker {
+  filter: drop-shadow(0 0 6px #ffd60088);
 }
 
 @media (max-width: 600px) {
@@ -159,10 +200,9 @@ footer {
     border-radius: 0;
   }
   #map {
-    height: 220px;
+    height: 200px;
   }
 }
-
 
 
 
