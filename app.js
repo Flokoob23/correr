@@ -1,8 +1,12 @@
-// ========== FLOKOOB GPS APP PRO ==========
+// ========== FLOKOOB GPS APP PRO - RECORRIDOS Y GIROS ==========
+
 let map, userMarker, accuracyCircle, pathPolyline;
 let chartPace, chartElev, chartSpeed;
+let routePolyline, routeMarkers = [];
+let routeMode = false;
 let watchId = null, started = false, paused = false, timerInterval = null, voiceOn = true;
 let kmVoiceNext = 1;
+let nextTurnIndex = 0;
 const state = {
   positions: [],
   times: [],
@@ -15,7 +19,8 @@ const state = {
   elevGain: 0,
   elevLoss: 0,
   lastElev: 0,
-  lastVoiceKm: 0
+  lastVoiceKm: 0,
+  route: [] // puntos {lat,lng}
 };
 
 // ----------- HELPERS -----------
@@ -128,6 +133,17 @@ function updateCharts() {
   chartSpeed.update('none');
 }
 
+function updateNextTurn(text, show) {
+  const section = document.getElementById('nextTurn');
+  const turnText = document.getElementById('turnText');
+  if (show) {
+    section.style.display = 'block';
+    turnText.textContent = text;
+  } else {
+    section.style.display = 'none';
+  }
+}
+
 // ----------- MAP -----------
 
 function initMap() {
@@ -146,7 +162,10 @@ function initMap() {
   L.control.layers(baseMaps, null, {position:'topright'}).addTo(map);
 
   pathPolyline = L.polyline([], {color:'#ffd600', weight:7, opacity:0.93}).addTo(map);
+  routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
+
+// ----------- USER MARKER -----------
 
 function updateUserMarker(coord, accuracy=20) {
   if (userMarker) {
@@ -168,61 +187,169 @@ function updateUserMarker(coord, accuracy=20) {
   }
 }
 
+// ----------- ROUTE CREATION -----------
+
+function enableRouteMode() {
+  routeMode = true;
+  document.getElementById('routeBtn').disabled = true;
+  document.getElementById('saveRouteBtn').style.display = '';
+  document.getElementById('clearRouteBtn').style.display = '';
+  speak('Modo de creación de recorrido activado. Haz clic en el mapa para marcar los puntos.');
+  
+  map.on('click', addRoutePoint);
+}
+function disableRouteMode() {
+  routeMode = false;
+  document.getElementById('routeBtn').disabled = false;
+  document.getElementById('saveRouteBtn').style.display = 'none';
+  document.getElementById('clearRouteBtn').style.display = 'none';
+  map.off('click', addRoutePoint);
+}
+
+function addRoutePoint(e) {
+  const latlng = e.latlng;
+  state.route.push({lat: latlng.lat, lng: latlng.lng});
+  drawRoute();
+}
+
+function drawRoute() {
+  routePolyline.setLatLngs(state.route);
+  // Remove old markers
+  routeMarkers.forEach(m=>map.removeLayer(m));
+  routeMarkers = [];
+  // Draw numbered markers
+  state.route.forEach((pt, i) => {
+    const marker = L.marker(pt, {
+      icon: L.divIcon({
+        className: 'route-marker',
+        html: `<div style="background:#ff8000;color:#fff;font-weight:bold;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #fff800;">${i+1}</div>`,
+        iconSize: [28,28],
+        iconAnchor: [14,14]
+      })
+    });
+    marker.addTo(map);
+    routeMarkers.push(marker);
+  });
+}
+
+function saveRoute() {
+  disableRouteMode();
+  speak('Recorrido guardado. Ya puedes iniciar tu actividad.');
+}
+function clearRoute() {
+  state.route = [];
+  drawRoute();
+}
+
+// ----------- TURN DETECTION -----------
+
+function getTurnInstruction(from, to) {
+  // Simple "doblar" indicación (izquierda/derecha/seguir) usando ángulo
+  if (!from || !to) return "";
+  // Calcula ángulo entre puntos (simplificado)
+  const dx = to.lng - from.lng;
+  const dy = to.lat - from.lat;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angle > 30) return "Dobla a la izquierda";
+  if (angle < -30) return "Dobla a la derecha";
+  return "Sigue recto";
+}
+
+function checkUpcomingTurn(currentPos) {
+  // Si hay una ruta creada y estamos cerca del siguiente punto, avisar
+  if (!state.route || state.route.length < 2 || nextTurnIndex >= state.route.length-1) {
+    updateNextTurn("", false);
+    return;
+  }
+  const nextPt = state.route[nextTurnIndex+1];
+  const distToTurn = calcDistance(currentPos, nextPt);
+  if (distToTurn < 60 && distToTurn > 30) {
+    // 50m antes del giro, avisar
+    const from = state.route[nextTurnIndex];
+    const to = state.route[nextTurnIndex+1];
+    const instruction = getTurnInstruction(from, to);
+    updateNextTurn(`${instruction} en ${Math.round(distToTurn)} metros`);
+    if(voiceOn) speak(`${instruction} en ${Math.round(distToTurn)} metros`);
+  } else if (distToTurn <= 30) {
+    // Ya llegó al punto, pasar al siguiente
+    nextTurnIndex++;
+    updateNextTurn("", false);
+  } else {
+    updateNextTurn("", false);
+  }
+}
+
 // ----------- GPS -----------
 
 async function onLocation(pos) {
   const lat = pos.coords.latitude, lng = pos.coords.longitude;
   const accuracy = pos.coords.accuracy || 20;
   const coord = {lat, lng};
-  // Elevation
   let elev = pos.coords.altitude;
-  if (elev == null) {
-    elev = await getElevation(lat, lng);
-  }
-  // Add point
+  if (elev == null) elev = await getElevation(lat, lng);
+
   const now = Date.now();
-  let delta = 0, tdelta = 1, spd = 0;
+  let addPoint = true;
   if (state.positions.length > 0) {
-    delta = calcDistance(state.positions[state.positions.length-1], coord);
-    state.distances.push(state.distances[state.distances.length-1] + delta);
-    state.times.push(Math.round((now - state.startTime)/1000));
-    // Elevation gain/loss
-    const prevElev = state.elevations[state.elevations.length-1];
-    if (elev !== null && prevElev !== null) {
-      if (elev > prevElev) state.elevGain += elev-prevElev;
-      else state.elevLoss += prevElev-elev;
+    const lastPos = state.positions[state.positions.length-1];
+    const lastTime = state.times[state.times.length-1];
+    const dist = calcDistance(lastPos, coord); // metros
+    const timeDelta = (Math.round((now-state.startTime)/1000)) - lastTime; // segundos
+    const vel = dist / (timeDelta > 0 ? timeDelta : 1); // m/s
+
+    // Filtro de saltos anómalos
+    if (dist > 30 && vel > 6) {
+      addPoint = false;
     }
-    // Speed (km/h)
-    tdelta = (state.times.length>1) ? (state.times[state.times.length-1]-state.times[state.times.length-2]) : 1;
-    spd = getSpeed(state.positions[state.positions.length-1], coord, tdelta);
-    state.speeds.push(spd);
-    state.elevations.push(elev);
-  } else {
-    state.distances.push(0);
-    state.times.push(0);
-    state.elevations.push(elev);
-    state.speeds.push(0);
   }
-  state.positions.push(coord);
-  state.lastElev = elev;
 
-  // Update marker & path
-  updateUserMarker(coord, accuracy);
-  pathPolyline.setLatLngs(state.positions);
+  if (addPoint) {
+    let delta = 0, tdelta = 1, spd = 0;
+    if (state.positions.length > 0) {
+      delta = calcDistance(state.positions[state.positions.length-1], coord);
+      state.distances.push(state.distances[state.distances.length-1] + delta);
+      state.times.push(Math.round((now - state.startTime)/1000));
+      // Elevation gain/loss
+      const prevElev = state.elevations[state.elevations.length-1];
+      if (elev !== null && prevElev !== null) {
+        if (elev > prevElev) state.elevGain += elev-prevElev;
+        else state.elevLoss += prevElev-elev;
+      }
+      // Speed (km/h)
+      tdelta = (state.times.length>1) ? (state.times[state.times.length-1]-state.times[state.times.length-2]) : 1;
+      spd = getSpeed(state.positions[state.positions.length-1], coord, tdelta);
+      state.speeds.push(spd);
+      state.elevations.push(elev);
+    } else {
+      state.distances.push(0);
+      state.times.push(0);
+      state.elevations.push(elev);
+      state.speeds.push(0);
+    }
+    state.positions.push(coord);
+    state.lastElev = elev;
 
-  // Center map on move
-  if (state.positions.length===1 || state.positions.length%5===0)
-    map.setView(coord, 16);
+    // Update marker & path
+    updateUserMarker(coord, accuracy);
+    pathPolyline.setLatLngs(state.positions);
 
-  updateStats();
-  updateCharts();
+    // Center map on move
+    if (state.positions.length===1 || state.positions.length%5===0)
+      map.setView(coord, 16);
 
-  // ------ AVISOS DE VOZ ------
-  const distKm = state.distances[state.distances.length-1]/1000;
-  if (voiceOn && distKm >= kmVoiceNext) {
-    speak(`Has recorrido ${kmVoiceNext} kilómetro${kmVoiceNext>1?'s':''}. Tiempo: ${formatTime(state.elapsed)}. Ritmo: ${calcPace(distKm,state.elapsed)} por kilómetro. ¡Sigue así!`);
-    kmVoiceNext++;
-    state.lastVoiceKm = kmVoiceNext-1;
+    updateStats();
+    updateCharts();
+
+    // Turn guidance
+    checkUpcomingTurn(coord);
+
+    // ------ AVISOS DE VOZ ------
+    const distKm = state.distances[state.distances.length-1]/1000;
+    if (voiceOn && distKm >= kmVoiceNext) {
+      speak(`Has recorrido ${kmVoiceNext} kilómetro${kmVoiceNext>1?'s':''}. Tiempo: ${formatTime(state.elapsed)}. Ritmo: ${calcPace(distKm,state.elapsed)} por kilómetro. ¡Sigue así!`);
+      kmVoiceNext++;
+      state.lastVoiceKm = kmVoiceNext-1;
+    }
   }
 }
 
@@ -257,12 +384,14 @@ document.getElementById('startBtn').onclick = function() {
   kmVoiceNext = 1;
   state.lastElev = 0;
   state.lastVoiceKm = 0;
+  nextTurnIndex = 0;
   if (pathPolyline) pathPolyline.setLatLngs([]);
   if (userMarker) map.removeLayer(userMarker), userMarker = null;
   if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
   updateStats();
   updateLaps();
   updateCharts();
+  updateNextTurn("", false);
   this.disabled = true;
   document.getElementById('pauseBtn').disabled = false;
   document.getElementById('lapBtn').disabled = false;
@@ -289,6 +418,7 @@ document.getElementById('pauseBtn').onclick = function() {
       watchId = null;
     }
     if(voiceOn) speak('Pausa. Puedes descansar.');
+    updateNextTurn("", false);
   } else {
     this.textContent = 'Pausa';
     if (navigator.geolocation) {
@@ -328,12 +458,14 @@ document.getElementById('resetBtn').onclick = function() {
   kmVoiceNext = 1;
   state.lastElev = 0;
   state.lastVoiceKm = 0;
+  nextTurnIndex = 0;
   if (pathPolyline) pathPolyline.setLatLngs([]);
   if (userMarker) map.removeLayer(userMarker), userMarker = null;
   if (accuracyCircle) map.removeLayer(accuracyCircle), accuracyCircle = null;
   updateStats();
   updateLaps();
   updateCharts();
+  updateNextTurn("", false);
   document.getElementById('startBtn').disabled = false;
   document.getElementById('pauseBtn').disabled = true;
   document.getElementById('lapBtn').disabled = true;
@@ -347,6 +479,16 @@ document.getElementById('voiceBtn').onclick = function() {
   this.textContent = voiceOn ? '🔊 Voz' : '🔇 Voz';
   if (voiceOn) speak('Voz activada');
   else window.speechSynthesis.cancel();
+};
+
+document.getElementById('routeBtn').onclick = function() {
+  enableRouteMode();
+};
+document.getElementById('saveRouteBtn').onclick = function() {
+  saveRoute();
+};
+document.getElementById('clearRouteBtn').onclick = function() {
+  clearRoute();
 };
 
 // ----------- ERROR -----------
