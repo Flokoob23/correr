@@ -26,8 +26,11 @@
           <form id="searchForm" class="search-form" autocomplete="off">
             <input type="text" id="searchInput" placeholder="🔎 Buscar dirección, parque, etc…" spellcheck="false">
             <button type="submit" class="btn btn-search">Ir</button>
+            <button id="saveFavBtn" class="btn btn-tertiary" type="button" title="Guardar favorito">⭐</button>
           </form>
           <button id="expandMapBtn" class="btn btn-mapview" title="Agrandar mapa">🗖</button>
+          <button id="nightModeBtn" class="btn btn-mapview" title="Vista nocturna">🌙</button>
+          <button id="followBtn" class="btn btn-mapview" title="Seguir mi posición">🧭</button>
         </div>
         <section id="mapWrapper" class="map-section">
           <div id="map"></div>
@@ -35,8 +38,13 @@
           <div id="routePointsPanel" class="route-points-panel"></div>
         </section>
         <div class="panel-distance-estimate" id="distanceEstimatePanel" style="display:none;">
-          <div><b><span id="distanceRemaining">0.00</span> km</b> para llegar</div>
-          <div class="panel-time"><span id="timeRemaining">--:--</span> estimado</div>
+          <div>
+            <b><span id="distanceRemaining">0.00</span> km</b> para llegar
+          </div>
+          <div class="panel-time">
+            <span id="timeRemaining">--:--</span> estimado
+            <span id="speedEstimated" style="font-size:0.8em; color:#b4f9d2;"></span>
+          </div>
         </div>
         <section id="routeInputs" style="display:none;">
           <div class="route-form">
@@ -77,6 +85,10 @@
           <button id="shareBtn" class="btn btn-primary" type="button">📤 Compartir</button>
           <button id="exportBtn" class="btn btn-secondary" type="button">⬇ GPX</button>
           <button id="summaryBtn" class="btn btn-tertiary" type="button">🖼️ Descargar Resumen</button>
+        </section>
+        <section id="favSection" style="margin-top:10px;">
+          <h4>Favoritos</h4>
+          <ul id="favList"></ul>
         </section>
       </section>
       <section id="historySection" class="screen">
