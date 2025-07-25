@@ -1,11 +1,14 @@
-// FLOKOOB Running Pro Tracker - Profesional
+// FLOKOOB Running Pro Tracker - Profesional y Mejorado
 const OWM_API_KEY = "TU_API_KEY_OPENWEATHERMAP";
 
 // === ESTADO GLOBAL ===
 let map, userMarker, accuracyCircle, pathPolyline, routePolyline, routeMarkers = [], routingControl = null, manualRouting = null;
 let routeMode = false, autoRouteMode = false, manualRoutePoints = [];
 let watchId = null, started = false, paused = false, timerInterval = null, voiceOn = true, kmVoiceNext = 1, realCoords = null;
+let mapExpanded = false, nightMode = false, followPosition = false;
+let favList = [];
 const STORAGE_KEY = "flokoob_activities_v1";
+const FAV_STORAGE_KEY = "flokoob_favorites_v1";
 const state = {
   positions: [], times: [], distances: [], elevations: [], speeds: [],
   laps: [], startTime: null, elapsed: 0, elevGain: 0, elevLoss: 0,
@@ -31,6 +34,21 @@ function showSection(secId) {
 function setActiveNav(navId) {
   Array.from(document.querySelectorAll('.nav-btn')).forEach(btn=>btn.classList.remove('active'));
   document.getElementById(navId).classList.add('active');
+}
+function motivacional(msgType) {
+  const frases = {
+    start: [
+      "¡A romper tus límites!", "Hoy es el día para mejorar.", "¡Entrena fuerte, corre libre!", "¡Vamos, campeón!", "Nada te detiene hoy."
+    ],
+    stop: [
+      "¡Buen trabajo! Descansa y recupérate.", "¡Finalizado! Lo diste todo.", "Entrenamiento completado, felicidades.", "Cada paso suma, ¡bien hecho!"
+    ],
+    save: [
+      "Recorrido guardado. ¡Sigue sumando kilómetros!", "¡Logro desbloqueado!", "¡Tu progreso te hace imparable!", "¡Sigue así, crack!"
+    ]
+  };
+  const arr = frases[msgType] || [];
+  return arr.length ? arr[Math.floor(Math.random()*arr.length)] : "¡Listo!";
 }
 
 // === WEATHER ===
@@ -60,7 +78,7 @@ function updateWeatherBar(lat, lon) {
     }).catch(()=>{ document.getElementById("weatherBar").innerText = "🌐"; });
 }
 
-// === BUSCADOR EN VIVO OSM ===
+// === BUSCADOR EN VIVO OSM CON FILTRO CERCA ===
 const searchInput = document.getElementById('searchInput');
 const searchForm = document.getElementById('searchForm');
 let searchDropdown = document.createElement('div');
@@ -79,30 +97,63 @@ searchInput.oninput = function(e) {
     return;
   }
   searchTimer = setTimeout(() => {
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=7&addressdetails=1`)
+    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&limit=12&addressdetails=1`;
+    fetch(url)
       .then(r=>r.json()).then(data=>{
-        if(data.length === 0) {
+        if(!data.length) {
           searchDropdown.innerHTML = '<div class="search-dropdown-item">Sin resultados</div>';
           searchDropdown.style.display = 'block';
-        } else {
-          searchDropdown.innerHTML = data.map((item, idx) => `
+          return;
+        }
+        let sorted = data;
+        if(realCoords) {
+          sorted = data.slice().sort((a,b)=>{
+            const da = Math.abs(a.lat-realCoords.lat)+Math.abs(a.lon-realCoords.lng);
+            const db = Math.abs(b.lat-realCoords.lat)+Math.abs(b.lon-realCoords.lng);
+            return da-db;
+          });
+        }
+        let items = sorted.filter((item,idx)=>{
+          if(!realCoords) return true;
+          let dlat = Math.abs(realCoords.lat-item.lat);
+          let dlon = Math.abs(realCoords.lng-item.lon);
+          return (dlat<0.25 && dlon<0.25);
+        });
+        let farItems = sorted.filter((item,idx)=>{
+          if(!realCoords) return false;
+          let dlat = Math.abs(realCoords.lat-item.lat);
+          let dlon = Math.abs(realCoords.lng-item.lon);
+          return !(dlat<0.25 && dlon<0.25);
+        });
+        searchDropdown.innerHTML =
+          items.map((item, idx) => `
+            <div class="search-dropdown-item" data-lat="${item.lat}" data-lon="${item.lon}">
+              <span class="search-main">${item.display_name.split(",")[0]}</span>
+              <span class="search-addr">${item.display_name.slice(item.display_name.indexOf(",")+1).trim()}</span>
+            </div>
+          `).join('') +
+          (farItems.length?'<div class="search-dropdown-item" style="color:#ffd600;">--- Otros Países ---</div>':'') +
+          farItems.map((item, idx) => `
             <div class="search-dropdown-item" data-lat="${item.lat}" data-lon="${item.lon}">
               <span class="search-main">${item.display_name.split(",")[0]}</span>
               <span class="search-addr">${item.display_name.slice(item.display_name.indexOf(",")+1).trim()}</span>
             </div>
           `).join('');
-          searchDropdown.style.display = 'block';
-          Array.from(searchDropdown.children).forEach(item => {
-            item.onclick = function() {
-              const lat = parseFloat(item.getAttribute('data-lat'));
-              const lon = parseFloat(item.getAttribute('data-lon'));
+        searchDropdown.style.display = 'block';
+        Array.from(searchDropdown.querySelectorAll('.search-dropdown-item')).forEach(item => {
+          item.onclick = function() {
+            const lat = parseFloat(item.getAttribute('data-lat'));
+            const lon = parseFloat(item.getAttribute('data-lon'));
+            if(lat && lon) {
               map.setView([lat, lon], 16, {animate:true});
               showQuickModal('📍 '+item.querySelector('.search-main').textContent);
               searchInput.value = item.querySelector('.search-main').textContent;
-              searchDropdown.style.display = 'none';
-            };
-          });
-        }
+              document.getElementById('saveFavBtn').dataset.lat = lat;
+              document.getElementById('saveFavBtn').dataset.lon = lon;
+            }
+            searchDropdown.style.display = 'none';
+          };
+        });
       });
   }, 180);
 };
@@ -121,10 +172,49 @@ searchForm.onsubmit = function(e) {
       if(data.length) {
         map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 16, {animate:true});
         showQuickModal('📍 '+(data[0].display_name.split(",")[0]));
+        document.getElementById('saveFavBtn').dataset.lat = data[0].lat;
+        document.getElementById('saveFavBtn').dataset.lon = data[0].lon;
       } else showQuickModal("No encontrado.");
     });
   searchDropdown.style.display = 'none';
   return false;
+};
+
+// === FAVORITOS ===
+function renderFavList() {
+  favList = JSON.parse(localStorage.getItem(FAV_STORAGE_KEY)||"[]");
+  const ul = document.getElementById('favList');
+  ul.innerHTML = '';
+  if(!favList.length) { ul.innerHTML = '<li style="color:#888">No hay favoritos aún.</li>'; return; }
+  favList.forEach((fav,i)=>{
+    ul.innerHTML += `<li>
+      <span>${fav.name||fav.lat+','+fav.lng}</span>
+      <button onclick="window.gotoFav(${i})">Ir</button>
+      <button onclick="window.removeFav(${i})" style="background:#f43e5c;color:#fff;">✕</button>
+    </li>`;
+  });
+}
+window.gotoFav = function(idx){
+  const fav = favList[idx];
+  if(!fav) return;
+  map.setView([fav.lat,fav.lng],16,{animate:true});
+  showQuickModal('📍 '+(fav.name||fav.lat+','+fav.lng));
+};
+window.removeFav = function(idx){
+  favList.splice(idx,1);
+  localStorage.setItem(FAV_STORAGE_KEY,JSON.stringify(favList));
+  renderFavList();
+};
+document.getElementById('saveFavBtn').onclick = function(){
+  let lat = this.dataset.lat, lng = this.dataset.lon;
+  if(!lat||!lng) { showQuickModal("Selecciona una ubicación y búscala primero."); return; }
+  let name = searchInput.value.trim()||"Favorito "+lat+","+lng;
+  favList = JSON.parse(localStorage.getItem(FAV_STORAGE_KEY)||"[]");
+  favList.unshift({lat:parseFloat(lat),lng:parseFloat(lng),name});
+  favList = favList.slice(0,20);
+  localStorage.setItem(FAV_STORAGE_KEY,JSON.stringify(favList));
+  renderFavList();
+  showQuickModal("Guardado en favoritos.");
 };
 
 // === MAPA Y RECORRIDO ===
@@ -145,13 +235,13 @@ function initMap() {
     "Negro": dark,
     "Callejero": osm
   };
-  satellite.addTo(map);
+  satellite.addTo(map); map._activeBaseLayer = satellite;
   L.control.layers(baseMaps, null, {position:'topright'}).addTo(map);
   pathPolyline = L.polyline([], {color:'#50e3a4', weight:6, opacity:0.93}).addTo(map);
   routePolyline = L.polyline([], {color:'#ff8000', weight:6, dashArray:'8,6', opacity:0.8}).addTo(map);
 }
 document.getElementById('expandMapBtn').onclick = function() {
-  let mapExpanded = this.innerText==="🗖";
+  mapExpanded = !mapExpanded;
   document.getElementById('mapWrapper').style.position = mapExpanded ? "fixed" : "relative";
   document.getElementById('mapWrapper').style.top = mapExpanded ? "0" : "";
   document.getElementById('mapWrapper').style.left = mapExpanded ? "0" : "";
@@ -160,44 +250,33 @@ document.getElementById('expandMapBtn').onclick = function() {
   document.getElementById('mapWrapper').style.height = mapExpanded ? "100vh" : "";
   document.getElementById('mainContent').style.display = mapExpanded ? "none" : "";
   document.getElementById('map').style.height = mapExpanded ? "100vh" : "295px";
-  setTimeout(()=>map.invalidateSize(),100);
+  setTimeout(()=>map.invalidateSize(),200);
   this.innerText = mapExpanded ? "🗗" : "🗖";
   document.getElementById('distanceEstimatePanel').style.position = mapExpanded ? "fixed":"";
   document.getElementById('distanceEstimatePanel').style.bottom = mapExpanded ? "18px":"";
   document.getElementById('distanceEstimatePanel').style.left = mapExpanded ? "50%":"";
   document.getElementById('distanceEstimatePanel').style.transform = mapExpanded ? "translateX(-50%)":"";
 };
-function askLocationPermissionAndTrack() {
-  if (!navigator.geolocation) { showModal("Tu navegador no soporta geolocalización."); return; }
-  navigator.geolocation.getCurrentPosition(function(pos){
-    realCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-    map.setView(realCoords, 17, {animate:true});
-    updateUserMarker(realCoords, pos.coords.accuracy||20);
-    updateWeatherBar(realCoords.lat, realCoords.lng);
-    showQuickModal("Ubicación exacta detectada.");
-    if (watchId) navigator.geolocation.clearWatch(watchId);
-    watchId = navigator.geolocation.watchPosition(function(p){
-      realCoords = {lat: p.coords.latitude, lng: p.coords.longitude};
-      updateUserMarker(realCoords, p.coords.accuracy||20);
-    }, function(e){
-      showModal("No se pudo obtener tu ubicación. Verifica permisos y GPS.");
-    }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
-  }, function(err){
-    showModal("Para usar FLOKOOB concede permisos de ubicación.");
-  }, {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
-}
-document.getElementById("locateBtn").onclick = askLocationPermissionAndTrack;
-function updateUserMarker(coord, accuracy=20) {
-  if (userMarker) {
-    userMarker.setLatLng(coord);
-    if (accuracyCircle) accuracyCircle.setLatLng(coord).setRadius(accuracy);
-  } else {
-    userMarker = L.marker(coord, {
-      icon: L.icon({iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',iconSize: [38,38],iconAnchor: [19,38],className: 'gps-marker'})
-    }).addTo(map);
-    accuracyCircle = L.circle(coord, {color: "#50e3a499",fillColor: "#50e3a455",fillOpacity: 0.4,radius: accuracy}).addTo(map);
+document.getElementById('nightModeBtn').onclick = function(){
+  nightMode = !nightMode;
+  if(nightMode){
+    map.eachLayer(function(l){ map.removeLayer(l); });
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {maxZoom: 19}).addTo(map);
+    document.body.style.background = "#101114";
+    showQuickModal("Modo nocturno activado");
+  }else{
+    map.eachLayer(function(l){ map.removeLayer(l); });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19}).addTo(map);
+    document.body.style.background = "";
+    showQuickModal("Modo diurno activado");
   }
-}
+  setTimeout(()=>map.invalidateSize(),200);
+};
+document.getElementById('followBtn').onclick = function(){
+  followPosition = !followPosition;
+  this.innerText = followPosition ? "🚶" : "🧭";
+  showQuickModal(followPosition?"El mapa te seguirá en tiempo real.":"Vista libre activada.");
+};
 
 // === BORRAR RECORRIDO / PUNTOS ===
 function clearAllRoutes() {
